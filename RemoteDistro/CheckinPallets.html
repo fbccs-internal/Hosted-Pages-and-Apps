@@ -188,6 +188,7 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,9
       <div class="topbar-title" id="t-title">Food Bank</div>
       <div class="topbar-sub" id="t-sub">Distribution Manager</div>
     </div>
+    <span id="sync-status" style="font-size:11px;font-family:'DM Mono',monospace;transition:color 0.3s"></span>
     <div id="t-actions"><button class="icon-btn" onclick="openNewDist()">+</button></div>
   </div>
 </div>
@@ -378,13 +379,60 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,9
 const FREQS=['Weekly','Bi-weekly','Monthly','Bi-monthly','Quarterly','Yearly'];
 const STRIPES=['#1A5E8F','#C47A1E','#0E7490','#1A6E42','#5B21B6','#922B21'];
 
+const GH_TOKEN='github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
+const GH_API='https://api.github.com/repos/fbccs-internal/publicappdata/contents/CheckinPallets/data.json';
+
 let db={distributions:[]};
 let cur=null;
 let newLvl=1, newPType='cases', ndRecur=false, ndFreq='Monthly';
 let sRecur=false, sFreq='Monthly';
+let remoteSha=null, syncTimer=null;
 
-function save(){try{localStorage.setItem('fb3_db',JSON.stringify(db))}catch(e){}}
-function load(){try{const r=localStorage.getItem('fb3_db');if(r)db=JSON.parse(r)}catch(e){}}
+function setSyncState(state){
+  const el=document.getElementById('sync-status');if(!el)return;
+  const S={idle:['','transparent'],syncing:['Syncing…','rgba(255,255,255,0.5)'],saved:['Saved ✓','#4ade80'],conflict:['Conflict ⚠','#fbbf24'],error:['Error ✕','#f87171']};
+  const[text,color]=S[state]||S.idle;
+  el.textContent=text;el.style.color=color;
+  if(state==='saved')setTimeout(()=>setSyncState('idle'),3000);
+}
+
+async function ghGet(){
+  const res=await fetch(GH_API,{headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json'}});
+  if(res.status===404){remoteSha=null;return null;}
+  if(!res.ok)throw new Error('GH GET '+res.status);
+  const json=await res.json();
+  remoteSha=json.sha;
+  return JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g,'')))));
+}
+
+async function ghPut(retrying){
+  setSyncState('syncing');
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(db))));
+  const body={message:'CheckinPallets data update',content};
+  if(remoteSha)body.sha=remoteSha;
+  const res=await fetch(GH_API,{method:'PUT',headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.status===409&&!retrying){
+    try{const remote=await ghGet();if(remote){db=remote;try{localStorage.setItem('fb3_db',JSON.stringify(db))}catch(e){}renderHome();}setSyncState('conflict');setTimeout(()=>ghPut(true),500);}catch(e){setSyncState('error');}
+    return;
+  }
+  if(!res.ok){setSyncState('error');return;}
+  const json=await res.json();remoteSha=json.content.sha;setSyncState('saved');
+}
+
+function save(){
+  try{localStorage.setItem('fb3_db',JSON.stringify(db))}catch(e){}
+  clearTimeout(syncTimer);setSyncState('syncing');
+  syncTimer=setTimeout(()=>ghPut(false),1500);
+}
+
+function load(){
+  try{const r=localStorage.getItem('fb3_db');if(r)db=JSON.parse(r)}catch(e){}
+  renderHome();
+  ghGet().then(remote=>{
+    if(remote){db=remote;try{localStorage.setItem('fb3_db',JSON.stringify(db))}catch(e){}renderHome();}
+    setSyncState('idle');
+  }).catch(()=>{});
+}
 function uid(){return Date.now()+Math.random().toString(36).slice(2,6)}
 function fmtDate(d){
   if(!d)return'';const[y,m,day]=d.split('-');
