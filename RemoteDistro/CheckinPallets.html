@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Food Bank Distribution</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --navy:#0F2A45; --blue:#1A5E8F; --blue-light:#D6EAF8; --blue-pale:#EBF5FC;
+  --amber:#C47A1E; --amber-light:#FEF3DC; --amber-pale:#FFFAF0;
+  --green:#1A6E42; --green-light:#D5F0E2;
+  --red:#922B21; --teal:#0E7490; --teal-light:#CFFAFE;
+  --purple:#5B21B6; --purple-light:#EDE9FE;
+  --gray-50:#F8F9FA; --gray-100:#F1F3F4; --gray-200:#E8EAED;
+  --gray-300:#DADCE0; --gray-500:#9AA0A6; --gray-700:#5F6368; --gray-900:#202124;
+  --white:#FFFFFF;
+  --r-sm:6px; --r-md:10px; --r-lg:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray-900);display:flex;flex-direction:column;max-width:480px;margin:0 auto}
+
+/* TOPBAR */
+#topbar{background:var(--navy);padding:0 16px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:50}
+.topbar-inner{display:flex;align-items:center;gap:10px;height:56px}
+.back-btn{background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:6px;border-radius:var(--r-sm);font-size:22px;line-height:1;display:none;align-items:center}
+.back-btn.visible{display:flex}
+.topbar-title{color:white;font-size:17px;font-weight:600;flex:1}
+.topbar-sub{color:rgba(255,255,255,0.5);font-size:11px;font-family:'DM Mono',monospace}
+.icon-btn{background:rgba(255,255,255,0.12);border:none;color:white;width:34px;height:34px;border-radius:var(--r-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
+.icon-btn:active{background:rgba(255,255,255,0.22)}
+
+/* SCROLL AREA */
+#scroll-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+
+/* BOTTOM NAV — sits outside scroll, always at physical bottom */
+#bottom-nav{background:var(--white);border-top:1px solid var(--gray-200);display:none;flex-shrink:0;box-shadow:0 -2px 10px rgba(0,0,0,0.07)}
+#bottom-nav.visible{display:flex}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 12px;background:none;border:none;cursor:pointer;gap:3px}
+.nav-btn:active{opacity:0.7}
+.nav-icon{font-size:20px;line-height:1}
+.nav-label{font-size:10px;font-weight:500;color:var(--gray-500);letter-spacing:0.02em}
+.nav-btn.active .nav-label{color:var(--blue)}
+.nav-dot{width:4px;height:4px;border-radius:50%;background:var(--blue);margin:0 auto;opacity:0}
+.nav-btn.active .nav-dot{opacity:1}
+
+/* SCREENS */
+.screen{display:none;animation:fadeUp 0.18s ease}
+.screen.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* HOME */
+.section-hdr{font-size:11px;font-weight:600;color:var(--gray-500);letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.dist-card{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--gray-200);margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);cursor:pointer;overflow:hidden;transition:transform 0.1s}
+.dist-card:active{transform:scale(0.99)}
+.dist-stripe{height:4px}
+.dist-body{padding:14px 16px}
+.dist-date{font-size:11px;color:var(--gray-500);font-family:'DM Mono',monospace;margin-bottom:4px}
+.dist-name{font-size:17px;font-weight:600;margin-bottom:8px}
+.dist-meta{display:flex;gap:8px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:500;padding:3px 9px;border-radius:100px;background:var(--gray-100);color:var(--gray-700)}
+.chip-blue{background:var(--blue-pale);color:var(--blue)}
+.chip-green{background:var(--green-light);color:var(--green)}
+.chip-amber{background:var(--amber-light);color:var(--amber)}
+.chip-purple{background:var(--purple-light);color:var(--purple)}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,#1A3E5C 100%);padding:18px 16px 20px}
+.hero-date{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:4px;letter-spacing:0.06em}
+.hero-name{font-size:20px;font-weight:600;color:white;margin-bottom:12px}
+.hero-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.hstat{background:rgba(255,255,255,0.1);border-radius:var(--r-md);padding:8px 6px;text-align:center}
+.hstat-val{font-size:18px;font-weight:600;color:white}
+.hstat-lbl{font-size:9px;color:rgba(255,255,255,0.5);margin-top:2px;font-weight:500}
+
+/* CARDS / ROWS */
+.card{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.card-pad{padding:14px 16px}
+.row-item{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--gray-100)}
+.row-item:last-child{border-bottom:none}
+.row-main{flex:1;min-width:0}
+.row-name{font-size:14px;font-weight:500}
+.row-sub{font-size:12px;color:var(--gray-500);margin-top:3px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+
+/* BADGES */
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;white-space:nowrap;flex-shrink:0}
+.b-l1{background:var(--blue-light);color:var(--blue)}
+.b-l2{background:var(--amber-light);color:var(--amber)}
+.b-in{background:var(--green-light);color:var(--green)}
+.b-out{background:var(--gray-100);color:var(--gray-700)}
+.b-done{background:var(--green-light);color:var(--green)}
+.b-cases{background:var(--blue-pale);color:var(--blue)}
+.b-bin{background:var(--teal-light);color:var(--teal)}
+.b-order{background:var(--purple-light);color:var(--purple);cursor:pointer}
+.b-noorder{background:var(--gray-100);color:var(--gray-500);cursor:pointer}
+
+/* CHECK CIRCLE */
+.chk{width:34px;height:34px;border-radius:50%;border:2px solid var(--gray-300);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:transparent;flex-shrink:0;transition:all 0.15s;margin-top:2px}
+.chk.on{background:var(--green);border-color:var(--green);color:white}
+
+/* PALLET ACCORDION */
+.pacc{margin-bottom:10px;border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.pacc-head{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--white);cursor:pointer;user-select:none}
+.pacc-head:active{background:var(--gray-50)}
+.pnum{width:32px;height:32px;border-radius:50%;background:var(--navy);color:white;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace}
+.pnum.done{background:var(--green)}
+.pacc-info{flex:1;min-width:0}
+.pacc-title{font-size:14px;font-weight:600}
+.pacc-sub{font-size:12px;color:var(--gray-500);margin-top:2px}
+.pchev{font-size:18px;color:var(--gray-500);transition:transform 0.2s;flex-shrink:0}
+.pchev.open{transform:rotate(90deg)}
+.pacc-body{display:none;background:var(--gray-50);border-top:1px solid var(--gray-200)}
+.pacc-body.open{display:block}
+.alloc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px;border-bottom:1px solid var(--gray-200)}
+.abox{border-radius:var(--r-md);padding:10px 12px;text-align:center}
+.abox.l1{background:var(--blue-pale)}.abox.l2{background:var(--amber-pale)}
+.abox-val{font-size:24px;font-weight:600}
+.abox.l1 .abox-val{color:var(--blue)}.abox.l2 .abox-val{color:var(--amber)}
+.abox-lbl{font-size:11px;color:var(--gray-500);margin-top:2px;font-weight:500}
+.pick-row{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--gray-100);font-size:13px}
+.pick-row:last-child{border-bottom:none}
+.pick-n{width:24px;height:24px;border-radius:50%;background:var(--gray-200);color:var(--gray-700);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace}
+.palloc{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;margin-left:auto;padding-left:6px}
+.palloc.l1c{color:var(--blue)}.palloc.l2c{color:var(--amber)}
+
+/* LOTTERY */
+.lballs{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:16px 0;min-height:52px}
+.lball{width:44px;height:44px;border-radius:50%;background:var(--navy);color:white;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:13px 16px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-900);transition:all 0.1s}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:var(--blue);color:white;border-color:var(--blue)}
+.btn-navy{background:var(--navy);color:white;border-color:var(--navy)}
+.btn-green{background:var(--green);color:white;border-color:var(--green)}
+.btn-danger{background:var(--red);color:white;border-color:var(--red)}
+.btn-sm{padding:8px 14px;font-size:13px}
+.btn-row{display:flex;gap:8px}.btn-row .btn{flex:1}
+
+/* FORM */
+.field{margin-bottom:14px}
+.flabel{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:5px;letter-spacing:0.02em}
+input[type=text],input[type=number],input[type=date],select{width:100%;padding:11px 13px;border:1px solid var(--gray-300);border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:15px;color:var(--gray-900);background:var(--white);outline:none;transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,94,143,0.12)}
+.irow{display:flex;gap:8px}.irow>*{flex:1}
+.seg{display:flex;border:1px solid var(--gray-300);border-radius:var(--r-md);overflow:hidden}
+.seg-btn{flex:1;padding:10px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;color:var(--gray-500)}
+.seg-btn+.seg-btn{border-left:1px solid var(--gray-300)}
+.seg-btn.active{background:var(--navy);color:white}
+.hint{font-size:12px;color:var(--gray-500);margin-top:4px}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--white);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;padding:20px 16px 40px;animation:slideUp 0.25s ease;position:relative}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.modal-handle{width:40px;height:4px;background:var(--gray-300);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:16px}
+.mclose{position:absolute;right:16px;top:16px;background:var(--gray-100);border:none;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray-700)}
+
+.empty{text-align:center;padding:32px 16px;color:var(--gray-500);font-size:14px}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-title{font-size:16px;font-weight:600;color:var(--gray-700);margin-bottom:4px}
+
+/* FREQ GRID */
+.freq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.fq-btn{padding:9px 4px;border:1px solid var(--gray-300);border-radius:var(--r-md);background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--gray-700);text-align:center}
+.fq-btn.active{background:var(--navy);color:white;border-color:var(--navy)}
+
+/* TOGGLE */
+.toggle-wrap{display:flex;align-items:center;gap:10px;margin-top:6px}
+.toggle-track{width:42px;height:24px;border-radius:12px;background:var(--gray-300);position:relative;flex-shrink:0;cursor:pointer;transition:background 0.2s}
+.toggle-track.on{background:var(--purple)}
+.toggle-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:white;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle-track.on .toggle-thumb{left:21px}
+.toggle-label{font-size:14px;color:var(--gray-700)}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="topbar-inner">
+    <button class="back-btn" id="back-btn" onclick="goHome()">&#8592;</button>
+    <div style="flex:1">
+      <div class="topbar-title" id="t-title">Food Bank</div>
+      <div class="topbar-sub" id="t-sub">Distribution Manager</div>
+    </div>
+    <div id="t-actions"><button class="icon-btn" onclick="openNewDist()">+</button></div>
+  </div>
+</div>
+
+<div id="scroll-area">
+
+  <!-- HOME -->
+  <div id="screen-home" class="screen active">
+    <div style="padding:16px 16px 8px"><div class="section-hdr">Distributions</div></div>
+    <div id="dist-list" style="padding:0 16px"></div>
+    <div id="home-empty" class="empty" style="display:none">
+      <div class="empty-icon">📦</div>
+      <div class="empty-title">No distributions yet</div>
+      <div>Tap + to create your first event.</div>
+    </div>
+  </div>
+
+  <!-- DIST VIEW -->
+  <div id="screen-dist" class="screen">
+    <div id="dist-hero" class="hero"></div>
+
+    <div id="tab-checkin" class="screen active" style="padding-top:12px">
+      <div style="padding:0 16px 8px">
+        <div class="section-hdr">Agencies <span id="ci-badge" style="background:var(--green-light);color:var(--green);padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600"></span></div>
+      </div>
+      <div class="card" style="margin:0 16px" id="ci-list"></div>
+      <div style="padding:12px 16px"><button class="btn btn-primary" onclick="openAddAgency()">+ Add Agency</button></div>
+    </div>
+
+    <div id="tab-lottery" class="screen" style="padding-top:12px">
+      <div style="padding:0 16px">
+        <button class="btn btn-navy" style="margin-bottom:12px" onclick="runLottery()">🎲 Draw Pick Order</button>
+        <div id="lottery-result"></div>
+      </div>
+    </div>
+
+    <div id="tab-pallets" class="screen" style="padding-top:12px">
+      <div style="padding:0 16px">
+        <div id="pallet-list"></div>
+        <button class="btn" onclick="openAddPallet()">+ Add Pallet</button>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="screen" style="padding-top:12px">
+      <div style="padding:0 16px">
+        <div class="card card-pad" style="margin-bottom:12px">
+          <div class="field"><div class="flabel">Distribution Name</div><input type="text" id="s-name" oninput="autoSave()"></div>
+          <div class="field"><div class="flabel">Date</div><input type="date" id="s-date" oninput="autoSave()"></div>
+          <div class="field">
+            <div class="flabel">Level 2 weight ratio</div>
+            <input type="number" id="s-ratio" min="1" max="5" step="0.1" oninput="autoSave()">
+            <div class="hint">Level 2 agencies receive this multiplier vs Level 1</div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <div class="flabel">Recurring event</div>
+            <div class="toggle-wrap">
+              <div class="toggle-track" id="s-rec-track" onclick="toggleSettingsRecur()"><div class="toggle-thumb"></div></div>
+              <span class="toggle-label" id="s-rec-lbl">One-time event</span>
+            </div>
+            <div id="s-freq-wrap" style="display:none;margin-top:12px">
+              <div class="flabel">Frequency</div>
+              <div class="freq-grid" id="s-freq-grid"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn" style="margin-bottom:8px" onclick="duplicateDist()">📋 Duplicate as New Event</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Delete this Distribution</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /scroll-area -->
+
+<!-- BOTTOM NAV — outside scroll so it's always at the bottom -->
+<div id="bottom-nav">
+  <button class="nav-btn active" id="nav-checkin" onclick="switchTab('checkin',this)">
+    <div class="nav-dot"></div><span class="nav-icon">✅</span><span class="nav-label">Check-in</span>
+  </button>
+  <button class="nav-btn" id="nav-lottery" onclick="switchTab('lottery',this)">
+    <div class="nav-dot"></div><span class="nav-icon">🎲</span><span class="nav-label">Lottery</span>
+  </button>
+  <button class="nav-btn" id="nav-pallets" onclick="switchTab('pallets',this)">
+    <div class="nav-dot"></div><span class="nav-icon">📦</span><span class="nav-label">Pallets</span>
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="switchTab('settings',this)">
+    <div class="nav-dot"></div><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span>
+  </button>
+</div>
+
+<!-- MODALS -->
+
+<div class="overlay" id="m-new-dist">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('m-new-dist')">×</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">New Distribution</div>
+    <div class="field"><div class="flabel">Name</div><input type="text" id="nd-name" placeholder="e.g. May Distribution"></div>
+    <div class="field"><div class="flabel">Date</div><input type="date" id="nd-date"></div>
+    <div class="field">
+      <div class="flabel">Level 2 weight ratio</div>
+      <input type="number" id="nd-ratio" value="1.5" min="1" max="5" step="0.1">
+      <div class="hint">Level 2 agencies receive this multiplier more than Level 1</div>
+    </div>
+    <div class="field">
+      <div class="flabel">Recurring?</div>
+      <div class="seg" style="margin-top:6px">
+        <button class="seg-btn active" id="nd-once" onclick="setNdRecur(false)">One-time</button>
+        <button class="seg-btn" id="nd-recur" onclick="setNdRecur(true)">Recurring</button>
+      </div>
+      <div id="nd-freq-wrap" style="display:none;margin-top:12px">
+        <div class="flabel">Frequency</div>
+        <div class="freq-grid" id="nd-freq-grid"></div>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <div class="flabel">Copy agencies from</div>
+      <div class="hint" style="margin-bottom:8px">Pre-fill agencies from a past event</div>
+      <select id="nd-copy"><option value="">Start fresh</option></select>
+    </div>
+    <div style="margin-top:16px"><button class="btn btn-primary" onclick="createDist()">Create Distribution</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="m-add-agency">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('m-add-agency')">×</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Agency</div>
+    <div class="field"><div class="flabel">Agency Number</div><input type="text" id="aa-num" placeholder="e.g. A-042"></div>
+    <div class="field"><div class="flabel">Agency Name</div><input type="text" id="aa-name" placeholder="Enter agency name"></div>
+    <div class="field" style="margin-bottom:0">
+      <div class="flabel">Level</div>
+      <div class="seg" style="margin-top:6px">
+        <button class="seg-btn active" id="aa-l1" onclick="setLevel(1)">Level 1</button>
+        <button class="seg-btn" id="aa-l2" onclick="setLevel(2)">Level 2</button>
+      </div>
+    </div>
+    <div style="margin-top:14px"><button class="btn btn-primary" onclick="addAgency()">Add Agency</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="m-add-pallet">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('m-add-pallet')">×</button>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Pallet</div>
+    <div class="field"><div class="flabel">Description</div><input type="text" id="ap-desc" placeholder="e.g. Canned Vegetables"></div>
+    <div class="field">
+      <div class="flabel">Type</div>
+      <div class="seg" style="margin-top:6px">
+        <button class="seg-btn active" id="ap-cases" onclick="setPType('cases')">Cases</button>
+        <button class="seg-btn" id="ap-bin" onclick="setPType('bin')">Bin (weight)</button>
+      </div>
+    </div>
+    <div id="cases-sec">
+      <div class="field"><div class="flabel">Manual Case Count</div><input type="number" id="ap-manual" placeholder="e.g. 48" min="0"></div>
+      <div style="text-align:center;color:var(--gray-500);font-size:13px;margin:-4px 0 12px">— or stack math —</div>
+      <div class="field">
+        <div class="flabel">Rows × Columns × Layers</div>
+        <div class="irow">
+          <input type="number" id="ap-rows" placeholder="Rows" min="0">
+          <input type="number" id="ap-cols" placeholder="Cols" min="0">
+          <input type="number" id="ap-layers" placeholder="Layers" min="0">
+        </div>
+      </div>
+    </div>
+    <div id="bin-sec" style="display:none">
+      <div class="field"><div class="flabel">Total Weight (lbs)</div><input type="number" id="ap-wt" placeholder="e.g. 320" min="0"></div>
+      <div class="field"><div class="flabel">Avg Unit Weight (lbs)</div><input type="number" id="ap-uwt" placeholder="e.g. 1.5" min="0" step="0.01"><div class="hint">Units = total weight ÷ avg unit weight</div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="addPallet()">Add Pallet</button>
+  </div>
+</div>
+
+<div class="overlay" id="m-confirm">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="conf-title">Are you sure?</div>
+    <div id="conf-msg" style="font-size:14px;color:var(--gray-700);margin-bottom:20px"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="closeModal('m-confirm')">Cancel</button>
+      <button class="btn btn-danger" id="conf-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FREQS=['Weekly','Bi-weekly','Monthly','Bi-monthly','Quarterly','Yearly'];
+const STRIPES=['#1A5E8F','#C47A1E','#0E7490','#1A6E42','#5B21B6','#922B21'];
+
+let db={distributions:[]};
+let cur=null;
+let newLvl=1, newPType='cases', ndRecur=false, ndFreq='Monthly';
+let sRecur=false, sFreq='Monthly';
+
+function save(){try{localStorage.setItem('fb3_db',JSON.stringify(db))}catch(e){}}
+function load(){try{const r=localStorage.getItem('fb3_db');if(r)db=JSON.parse(r)}catch(e){}}
+function uid(){return Date.now()+Math.random().toString(36).slice(2,6)}
+function fmtDate(d){
+  if(!d)return'';const[y,m,day]=d.split('-');
+  return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+parseInt(day)+', '+y;
+}
+function getDist(){return db.distributions.find(d=>d.id===cur)}
+function calcAlloc(dist,qty){
+  const ratio=dist.ratio||1.5,cset=new Set(dist.checkedIn||[]),ags=dist.agencies||[];
+  const l1=ags.filter(a=>cset.has(a.id)&&a.level===1).length;
+  const l2=ags.filter(a=>cset.has(a.id)&&a.level===2).length;
+  const pool=l1+l2*ratio;
+  if(!pool)return{l1:0,l2:0,l1n:l1,l2n:l2};
+  return{l1:Math.round(qty/pool*100)/100,l2:Math.round(qty/pool*ratio*100)/100,l1n:l1,l2n:l2};
+}
+
+// NAV
+function goHome(){
+  cur=null;
+  document.getElementById('screen-home').classList.add('active');
+  document.getElementById('screen-dist').classList.remove('active');
+  document.getElementById('back-btn').classList.remove('visible');
+  document.getElementById('t-title').textContent='Food Bank';
+  document.getElementById('t-sub').textContent='Distribution Manager';
+  document.getElementById('t-actions').innerHTML='<button class="icon-btn" onclick="openNewDist()">+</button>';
+  document.getElementById('bottom-nav').classList.remove('visible');
+  renderHome();
+}
+function openDist(id){
+  cur=id;const dist=getDist();if(!dist)return;
+  document.getElementById('screen-home').classList.remove('active');
+  document.getElementById('screen-dist').classList.add('active');
+  document.getElementById('back-btn').classList.add('visible');
+  document.getElementById('t-title').textContent=dist.name;
+  document.getElementById('t-sub').textContent=fmtDate(dist.date)||(dist.recurring?dist.frequency:'');
+  document.getElementById('t-actions').innerHTML='';
+  document.getElementById('bottom-nav').classList.add('visible');
+  ['checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-checkin').classList.add('active');
+  document.querySelectorAll('#bottom-nav .nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav-checkin').classList.add('active');
+  renderDistHero();renderCheckin();
+}
+function switchTab(tab,btn){
+  ['checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('#bottom-nav .nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('scroll-area').scrollTop=0;
+  if(tab==='checkin')renderCheckin();
+  else if(tab==='lottery')renderLottery();
+  else if(tab==='pallets')renderPallets();
+  else if(tab==='settings')renderSettings();
+}
+
+// HOME
+function renderHome(){
+  const list=document.getElementById('dist-list'),empty=document.getElementById('home-empty');
+  list.innerHTML='';
+  if(!db.distributions.length){empty.style.display='block';return}
+  empty.style.display='none';
+  [...db.distributions].sort((a,b)=>(b.date||'')>(a.date||'')?1:-1).forEach((d,i)=>{
+    const cin=(d.checkedIn||[]).length,pdone=Object.values(d.palletsDone||{}).filter(Boolean).length;
+    const div=document.createElement('div');div.className='dist-card';div.onclick=()=>openDist(d.id);
+    div.innerHTML=`<div class="dist-stripe" style="background:${STRIPES[i%STRIPES.length]}"></div>
+      <div class="dist-body">
+        <div class="dist-date">${fmtDate(d.date)||'No date set'}${d.recurring?` · <span style="color:var(--amber)">${d.frequency}</span>`:''}</div>
+        <div class="dist-name">${d.name}</div>
+        <div class="dist-meta">
+          <span class="chip chip-blue">${(d.agencies||[]).length} agencies</span>
+          <span class="chip">${(d.pallets||[]).length} pallets</span>
+          ${cin?`<span class="chip chip-green">${cin} checked in</span>`:''}
+          ${pdone?`<span class="chip chip-amber">${pdone} pallets done</span>`:''}
+          ${d.recurring?`<span class="chip chip-purple">${d.frequency}</span>`:''}
+        </div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+// FREQ GRID helper
+function buildFreqGrid(containerId,active,cb){
+  const g=document.getElementById(containerId);g.innerHTML='';
+  FREQS.forEach(f=>{
+    const b=document.createElement('button');b.className='fq-btn'+(f===active?' active':'');
+    b.textContent=f;b.onclick=()=>{cb(f);buildFreqGrid(containerId,f,cb)};g.appendChild(b);
+  });
+}
+
+// NEW DIST
+function setNdRecur(val){
+  ndRecur=val;
+  document.getElementById('nd-once').classList.toggle('active',!val);
+  document.getElementById('nd-recur').classList.toggle('active',val);
+  document.getElementById('nd-freq-wrap').style.display=val?'block':'none';
+  if(val)buildFreqGrid('nd-freq-grid',ndFreq,f=>ndFreq=f);
+}
+function openNewDist(){
+  document.getElementById('nd-name').value='';
+  document.getElementById('nd-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('nd-ratio').value='1.5';
+  setNdRecur(false);
+  const sel=document.getElementById('nd-copy');sel.innerHTML='<option value="">Start fresh</option>';
+  db.distributions.forEach(d=>{const o=document.createElement('option');o.value=d.id;o.textContent=d.name+(d.date?' ('+fmtDate(d.date)+')':'');sel.appendChild(o)});
+  openModal('m-new-dist');setTimeout(()=>document.getElementById('nd-name').focus(),300);
+}
+function createDist(){
+  const name=document.getElementById('nd-name').value.trim()||'New Distribution';
+  const date=document.getElementById('nd-date').value;
+  const ratio=parseFloat(document.getElementById('nd-ratio').value)||1.5;
+  const copyId=document.getElementById('nd-copy').value;
+  let agencies=[];
+  if(copyId){const src=db.distributions.find(d=>d.id===copyId);if(src)agencies=(src.agencies||[]).map(a=>({...a,id:uid()}))}
+  const dist={id:uid(),name,date,ratio,recurring:ndRecur,frequency:ndRecur?ndFreq:'',agencies,pallets:[],checkedIn:[],pickOrder:[],palletsDone:{},orderStatus:{}};
+  db.distributions.unshift(dist);save();closeModal('m-new-dist');renderHome();openDist(dist.id);
+}
+
+// HERO
+function renderDistHero(){
+  const d=getDist();if(!d)return;
+  const cin=(d.checkedIn||[]).length,tot=(d.agencies||[]).length;
+  const pdone=Object.values(d.palletsDone||{}).filter(Boolean).length,tp=(d.pallets||[]).length;
+  const orders=Object.values(d.orderStatus||{}).filter(Boolean).length;
+  document.getElementById('dist-hero').innerHTML=`
+    <div class="hero-date">${fmtDate(d.date)||'No date'}${d.recurring?` · ${d.frequency}`:''}</div>
+    <div class="hero-name">${d.name}</div>
+    <div class="hero-grid">
+      <div class="hstat"><div class="hstat-val">${cin}/${tot}</div><div class="hstat-lbl">Checked in</div></div>
+      <div class="hstat"><div class="hstat-val">${pdone}/${tp}</div><div class="hstat-lbl">Pallets done</div></div>
+      <div class="hstat"><div class="hstat-val">${d.ratio||1.5}×</div><div class="hstat-lbl">L2 ratio</div></div>
+      <div class="hstat"><div class="hstat-val">${orders}</div><div class="hstat-lbl">Orders</div></div>
+    </div>`;
+}
+
+// CHECK-IN
+function renderCheckin(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cset=new Set(d.checkedIn||[]),omap=d.orderStatus||{};
+  const list=document.getElementById('ci-list');list.innerHTML='';
+  document.getElementById('ci-badge').textContent=`${cset.size} / ${(d.agencies||[]).length}`;
+  if(!(d.agencies||[]).length){list.innerHTML='<div class="empty" style="padding:24px"><div class="empty-title">No agencies yet</div><div>Add agencies below.</div></div>';return}
+  d.agencies.forEach(a=>{
+    const checked=cset.has(a.id),hasOrder=!!omap[a.id];
+    const row=document.createElement('div');row.className='row-item';
+    row.innerHTML=`
+      <button class="chk ${checked?'on':''}" onclick="toggleCheckin('${a.id}')">✓</button>
+      <div class="row-main">
+        <div class="row-name">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${a.num}</span>`:''}${a.name}</div>
+        <div class="row-sub">
+          <span class="badge ${a.level===1?'b-l1':'b-l2'}">Level ${a.level}</span>
+          <span class="badge ${checked?'b-in':'b-out'}">${checked?'Checked in':'Pending'}</span>
+          <span class="badge ${hasOrder?'b-order':'b-noorder'}" onclick="toggleOrder('${a.id}')">${hasOrder?'📋 Order pickup':'No order'}</span>
+        </div>
+      </div>
+      <button onclick="removeAgency('${a.id}')" style="background:none;border:none;color:var(--gray-500);font-size:20px;cursor:pointer;padding:4px 2px;line-height:1;flex-shrink:0;margin-top:2px">×</button>`;
+    list.appendChild(row);
+  });
+}
+function toggleCheckin(id){const d=getDist();if(!d)return;d.checkedIn=d.checkedIn||[];const i=d.checkedIn.indexOf(id);if(i>=0)d.checkedIn.splice(i,1);else d.checkedIn.push(id);save();renderCheckin()}
+function toggleOrder(id){const d=getDist();if(!d)return;d.orderStatus=d.orderStatus||{};d.orderStatus[id]=!d.orderStatus[id];save();renderCheckin()}
+function openAddAgency(){document.getElementById('aa-num').value='';document.getElementById('aa-name').value='';newLvl=1;document.getElementById('aa-l1').classList.add('active');document.getElementById('aa-l2').classList.remove('active');openModal('m-add-agency');setTimeout(()=>document.getElementById('aa-num').focus(),300)}
+function setLevel(l){newLvl=l;document.getElementById('aa-l1').classList.toggle('active',l===1);document.getElementById('aa-l2').classList.toggle('active',l===2)}
+function addAgency(){
+  const name=document.getElementById('aa-name').value.trim();if(!name)return;
+  const num=document.getElementById('aa-num').value.trim();
+  const d=getDist();if(!d)return;
+  d.agencies=d.agencies||[];d.agencies.push({id:uid(),num,name,level:newLvl});
+  save();closeModal('m-add-agency');renderCheckin();
+}
+function removeAgency(id){
+  const d=getDist();if(!d)return;
+  d.agencies=(d.agencies||[]).filter(a=>a.id!==id);
+  d.checkedIn=(d.checkedIn||[]).filter(i=>i!==id);
+  d.pickOrder=(d.pickOrder||[]).filter(i=>i!==id);
+  delete (d.orderStatus||{})[id];
+  save();renderCheckin();
+}
+
+// LOTTERY
+function runLottery(){
+  const d=getDist();if(!d)return;
+  const cset=new Set(d.checkedIn||[]);
+  const elig=(d.agencies||[]).filter(a=>cset.has(a.id));
+  const el=document.getElementById('lottery-result');
+  if(elig.length<2){el.innerHTML='<div class="card card-pad" style="text-align:center;color:var(--gray-700)">Check in at least 2 agencies first.</div>';return}
+  const sh=[...elig].sort(()=>Math.random()-0.5);
+  d.pickOrder=sh.map(a=>a.id);save();
+  let h=`<div class="lballs">`;sh.forEach((_,i)=>h+=`<div class="lball" style="animation-delay:${i*0.1}s">${i+1}</div>`);h+=`</div>`;
+  h+=`<div style="margin:12px 0 4px"><div class="section-hdr">Pick order</div></div><div class="card" style="overflow:hidden">`;
+  sh.forEach((a,i)=>h+=`<div class="row-item" style="${i===0?'background:var(--blue-pale)':''}">
+    <div style="width:28px;height:28px;border-radius:50%;background:${i===0?'var(--blue)':'var(--gray-200)'};color:${i===0?'white':'var(--gray-700)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;font-family:'DM Mono',monospace">${i+1}</div>
+    <div class="row-main"><div class="row-name">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);margin-right:5px">${a.num}</span>`:''}${a.name}</div></div>
+    <span class="badge ${a.level===1?'b-l1':'b-l2'}">L${a.level}</span>
+  </div>`);
+  h+=`</div>`;el.innerHTML=h;renderDistHero();
+}
+function renderLottery(){
+  const d=getDist();if(!d)return;
+  const el=document.getElementById('lottery-result');
+  if(!(d.pickOrder||[]).length){el.innerHTML='';return}
+  const cset=new Set(d.checkedIn||[]);
+  const ord=(d.pickOrder||[]).map(id=>(d.agencies||[]).find(a=>a.id===id)).filter(a=>a&&cset.has(a.id));
+  if(!ord.length){el.innerHTML='';return}
+  let h=`<div class="lballs">`;ord.forEach((_,i)=>h+=`<div class="lball">${i+1}</div>`);h+=`</div>`;
+  h+=`<div style="margin:12px 0 4px"><div class="section-hdr">Pick order</div></div><div class="card" style="overflow:hidden">`;
+  ord.forEach((a,i)=>h+=`<div class="row-item" style="${i===0?'background:var(--blue-pale)':''}">
+    <div style="width:28px;height:28px;border-radius:50%;background:${i===0?'var(--blue)':'var(--gray-200)'};color:${i===0?'white':'var(--gray-700)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0">${i+1}</div>
+    <div class="row-main"><div class="row-name">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);margin-right:5px">${a.num}</span>`:''}${a.name}</div></div>
+    <span class="badge ${a.level===1?'b-l1':'b-l2'}">L${a.level}</span>
+  </div>`);
+  h+=`</div>`;el.innerHTML=h;
+}
+
+// PALLETS
+function openAddPallet(){
+  ['ap-desc','ap-manual','ap-rows','ap-cols','ap-layers','ap-wt','ap-uwt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+  newPType='cases';document.getElementById('ap-cases').classList.add('active');document.getElementById('ap-bin').classList.remove('active');
+  document.getElementById('cases-sec').style.display='block';document.getElementById('bin-sec').style.display='none';
+  openModal('m-add-pallet');setTimeout(()=>document.getElementById('ap-desc').focus(),300);
+}
+function setPType(t){
+  newPType=t;document.getElementById('ap-cases').classList.toggle('active',t==='cases');document.getElementById('ap-bin').classList.toggle('active',t==='bin');
+  document.getElementById('cases-sec').style.display=t==='cases'?'block':'none';document.getElementById('bin-sec').style.display=t==='bin'?'block':'none';
+}
+function addPallet(){
+  const desc=document.getElementById('ap-desc').value.trim();if(!desc)return;
+  const d=getDist();if(!d)return;let qty=0;
+  if(newPType==='cases'){
+    const m=parseFloat(document.getElementById('ap-manual').value)||0;
+    const r=parseFloat(document.getElementById('ap-rows').value)||0,c=parseFloat(document.getElementById('ap-cols').value)||0,l=parseFloat(document.getElementById('ap-layers').value)||0;
+    qty=m>0?m:r*c*l;
+  }else{
+    const wt=parseFloat(document.getElementById('ap-wt').value)||0,uw=parseFloat(document.getElementById('ap-uwt').value)||1;qty=uw>0?wt/uw:0;
+  }
+  d.pallets=d.pallets||[];d.pallets.push({id:uid(),desc,type:newPType,qty:Math.round(qty*100)/100});
+  save();closeModal('m-add-pallet');renderPallets();renderDistHero();
+}
+function removePallet(id){const d=getDist();if(!d)return;d.pallets=(d.pallets||[]).filter(p=>p.id!==id);delete (d.palletsDone||{})[id];save();renderPallets();renderDistHero()}
+function togglePalletDone(id){const d=getDist();if(!d)return;d.palletsDone=d.palletsDone||{};d.palletsDone[id]=!d.palletsDone[id];save();renderPallets();renderDistHero()}
+function togglePalletBody(id){
+  const body=document.getElementById('pb-'+id),chev=document.getElementById('pc-'+id),open=body.classList.contains('open');
+  document.querySelectorAll('.pacc-body').forEach(b=>b.classList.remove('open'));
+  document.querySelectorAll('.pchev').forEach(c=>c.classList.remove('open'));
+  if(!open){body.classList.add('open');chev.classList.add('open')}
+}
+function renderPallets(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cont=document.getElementById('pallet-list');cont.innerHTML='';
+  if(!(d.pallets||[]).length){cont.innerHTML='<div class="empty" style="padding:24px 0"><div class="empty-title">No pallets yet</div><div>Add pallets below.</div></div>';return}
+  const cset=new Set(d.checkedIn||[]),omap=d.orderStatus||{};
+  const ord=(d.pickOrder||[]).map(id=>(d.agencies||[]).find(a=>a.id===id)).filter(a=>a&&cset.has(a.id));
+  (d.pallets||[]).forEach((p,i)=>{
+    const done=!!(d.palletsDone||{})[p.id],alloc=calcAlloc(d,p.qty),unit=p.type==='bin'?'units':'cases';
+    const pickRows=ord.length?ord.map((a,idx)=>{
+      const val=a.level===1?alloc.l1:alloc.l2,cls=a.level===1?'l1c':'l2c';
+      const of=omap[a.id]?'<span style="font-size:11px;color:var(--purple);margin-left:3px">📋</span>':'';
+      return `<div class="pick-row">
+        <div class="pick-n">${idx+1}</div>
+        <span style="flex:1;font-size:13px">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);margin-right:4px">${a.num}</span>`:''}${a.name}${of}</span>
+        <span class="badge ${a.level===1?'b-l1':'b-l2'}" style="margin-right:4px">L${a.level}</span>
+        <span class="palloc ${cls}">${val.toFixed(2)} ${unit}</span>
+      </div>`;
+    }).join(''):`<div style="padding:12px 16px;font-size:13px;color:var(--gray-500);font-style:italic">Run the lottery to see pick order.</div>`;
+    const acc=document.createElement('div');acc.className='pacc';acc.style.opacity=done?'0.65':'1';
+    acc.innerHTML=`
+      <div class="pacc-head" onclick="togglePalletBody('${p.id}')">
+        <div class="pnum ${done?'done':''}">${i+1}</div>
+        <div class="pacc-info">
+          <div class="pacc-title">${p.desc} <span class="badge ${p.type==='bin'?'b-bin':'b-cases'}" style="font-size:10px;padding:1px 7px">${p.type==='bin'?'Bin':'Cases'}</span></div>
+          <div class="pacc-sub">${p.qty} ${unit} total · ${done?'Complete':'Pending'}</div>
+        </div>
+        ${done?'<span class="badge b-done">Done</span>':''}
+        <span class="pchev" id="pc-${p.id}">›</span>
+      </div>
+      <div class="pacc-body" id="pb-${p.id}">
+        <div class="alloc-grid">
+          <div class="abox l1"><div class="abox-val">${alloc.l1.toFixed(2)}</div><div class="abox-lbl">Level 1 per agency<br>(${alloc.l1n} agencies)</div></div>
+          <div class="abox l2"><div class="abox-val">${alloc.l2.toFixed(2)}</div><div class="abox-lbl">Level 2 per agency<br>(${alloc.l2n} agencies)</div></div>
+        </div>
+        <div style="padding:8px 0">
+          <div style="padding:0 16px 6px"><div class="section-hdr" style="margin:0">Pick order &amp; allocation</div></div>
+          ${pickRows}
+        </div>
+        <div style="padding:10px 16px;display:flex;gap:8px">
+          <button class="btn ${done?'':'btn-green'} btn-sm" style="flex:1" onclick="togglePalletDone('${p.id}');event.stopPropagation()">${done?'Mark Incomplete':'✓ Mark Complete'}</button>
+          <button class="btn btn-sm" style="flex:0;padding:8px 12px;color:var(--red);border-color:var(--red)" onclick="removePallet('${p.id}');event.stopPropagation()">✕</button>
+        </div>
+      </div>`;
+    cont.appendChild(acc);
+  });
+}
+
+// SETTINGS
+function renderSettings(){
+  const d=getDist();if(!d)return;
+  document.getElementById('s-name').value=d.name||'';
+  document.getElementById('s-date').value=d.date||'';
+  document.getElementById('s-ratio').value=d.ratio||1.5;
+  sRecur=!!d.recurring;sFreq=d.frequency||'Monthly';
+  const track=document.getElementById('s-rec-track'),lbl=document.getElementById('s-rec-lbl'),fp=document.getElementById('s-freq-wrap');
+  track.classList.toggle('on',sRecur);
+  lbl.textContent=sRecur?`Recurring · ${sFreq}`:'One-time event';
+  fp.style.display=sRecur?'block':'none';
+  if(sRecur)buildFreqGrid('s-freq-grid',sFreq,f=>{sFreq=f;autoSave()});
+}
+function toggleSettingsRecur(){
+  sRecur=!sRecur;const d=getDist();if(!d)return;d.recurring=sRecur;if(!sRecur)d.frequency='';save();renderSettings();
+}
+function autoSave(){
+  const d=getDist();if(!d)return;
+  d.name=document.getElementById('s-name').value.trim()||d.name;
+  d.date=document.getElementById('s-date').value;
+  d.ratio=parseFloat(document.getElementById('s-ratio').value)||1.5;
+  if(sRecur)d.frequency=sFreq;
+  save();
+  document.getElementById('t-title').textContent=d.name;
+  document.getElementById('t-sub').textContent=fmtDate(d.date)||(d.recurring?d.frequency:'');
+  renderDistHero();
+}
+function duplicateDist(){
+  const d=getDist();if(!d)return;
+  const copy={...JSON.parse(JSON.stringify(d)),id:uid(),name:d.name+' (Copy)',date:new Date().toISOString().slice(0,10),checkedIn:[],pickOrder:[],palletsDone:{},pallets:[],orderStatus:{}};
+  copy.agencies=(d.agencies||[]).map(a=>({...a,id:uid()}));
+  db.distributions.unshift(copy);save();goHome();setTimeout(()=>openDist(copy.id),50);
+}
+function confirmDelete(){
+  const d=getDist();if(!d)return;
+  document.getElementById('conf-title').textContent='Delete Distribution?';
+  document.getElementById('conf-msg').textContent=`"${d.name}" and all its data will be permanently deleted.`;
+  document.getElementById('conf-ok').onclick=()=>{db.distributions=db.distributions.filter(x=>x.id!==cur);save();closeModal('m-confirm');goHome()};
+  openModal('m-confirm');
+}
+
+// MODALS
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+
+load();renderHome();
+</script>
+</body>
+</html>
