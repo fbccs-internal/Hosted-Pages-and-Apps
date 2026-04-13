@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Food Bank Distribution</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root {
+--navy:#2D1B69; --blue:#6D28D9; --blue-light:#DDD6FE; --blue-pale:#EDE9FE;
+--amber:#C47A1E; --amber-light:#FEF3DC;
+--green:#1A6E42; --green-light:#D5F0E2;
+--red:#922B21; --teal:#0E7490; --teal-light:#CFFAFE;
+--purple:#5B21B6; --purple-light:#EDE9FE;
+--gray-50:#F8F9FA; --gray-100:#F1F3F4; --gray-200:#E8EAED;
+--gray-300:#DADCE0; --gray-500:#9AA0A6; --gray-700:#5F6368; --gray-900:#202124;
+--white:#FFFFFF;
+--r-sm:6px; --r-md:10px; --r-lg:16px;
+--sidebar-w:230px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray-900);}
+#app{display:flex;height:100vh;overflow:hidden;}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--navy);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar-header{padding:20px 16px 10px;}
+#sidebar-logo{color:white;font-size:16px;font-weight:700;margin-bottom:2px;}
+#sidebar-sub{color:rgba(255,255,255,0.4);font-size:11px;font-family:'DM Mono',monospace;}
+#sidebar-sync{font-size:11px;font-family:'DM Mono',monospace;padding:0 16px 8px;min-height:18px;transition:color 0.3s;}
+#sidebar-dist-section{flex:1;overflow-y:auto;padding-bottom:8px;}
+.sidebar-section-label{font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);letter-spacing:0.1em;text-transform:uppercase;padding:8px 16px 4px;}
+.sidebar-dist-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border-left:3px solid transparent;transition:background 0.1s;position:relative;}
+.sidebar-dist-item:hover{background:rgba(255,255,255,0.07);}
+.sidebar-dist-item.active-view{background:rgba(255,255,255,0.12);border-left-color:#DDD6FE;}
+.sdi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sdi-info{flex:1;min-width:0;}
+.sdi-name{color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sdi-status{font-size:10px;margin-top:1px;}
+.sdi-active-badge{font-size:9px;font-weight:700;background:#4ade80;color:#14532d;padding:1px 6px;border-radius:100px;flex-shrink:0;}
+#sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:8px;}
+.sfooter-btn{width:100%;padding:9px 12px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background 0.15s;}
+#btn-new-dist{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);color:white;}
+#btn-new-dist:hover{background:rgba(255,255,255,0.2);}
+#btn-item-library{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
+#btn-item-library:hover{background:rgba(255,255,255,0.08);}
+
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#topbar{background:var(--white);border-bottom:1px solid var(--gray-200);flex-shrink:0;padding:0 24px;display:flex;align-items:center;gap:12px;height:56px;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+#t-title{font-size:17px;font-weight:600;flex:1;}
+#t-sub{color:var(--gray-500);font-size:12px;font-family:'DM Mono',monospace;}
+
+/* ACTIVE BANNER */
+#active-banner{background:#f0fdf4;border-bottom:1px solid #bbf7d0;padding:8px 24px;font-size:13px;color:#166534;display:none;align-items:center;gap:8px;flex-shrink:0;}
+#active-banner.show{display:flex;}
+
+/* HOME */
+#screen-home{padding:32px 24px;}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+.empty-title{font-size:18px;font-weight:600;color:var(--gray-700);margin-bottom:6px;}
+
+/* DIST VIEW */
+#screen-dist{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#dist-subnav{display:flex;border-bottom:1px solid var(--gray-200);background:var(--white);flex-shrink:0;padding:0 24px;}
+.tab-btn{padding:14px 18px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s;display:flex;align-items:center;gap:6px;}
+.tab-btn:hover{color:var(--gray-900);}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,#3b1fa8 100%);padding:16px 24px 20px;flex-shrink:0;}
+.hero-label{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:3px;letter-spacing:0.06em;}
+.hero-name{font-size:18px;font-weight:600;color:white;margin-bottom:10px;display:flex;align-items:center;gap:10px;}
+.hero-active-pill{font-size:10px;font-weight:700;background:#4ade80;color:#14532d;padding:2px 8px;border-radius:100px;}
+.hero-grid{display:flex;gap:10px;}
+.hstat{background:rgba(255,255,255,0.1);border-radius:var(--r-md);padding:8px 16px;text-align:center;min-width:90px;}
+.hstat-val{font-size:20px;font-weight:600;color:white;}
+.hstat-lbl{font-size:9px;color:rgba(255,255,255,0.5);margin-top:2px;font-weight:500;}
+
+/* SCROLL + SCREENS */
+#scroll-area{flex:1;overflow-y:auto;padding:20px 24px;}
+.screen{display:none;}
+.screen.active{display:block;}
+.section-hdr{font-size:11px;font-weight:600;color:var(--gray-500);letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.card-pad{padding:16px 18px;}
+.row-item{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;border-bottom:1px solid var(--gray-100);}
+.row-item:last-child{border-bottom:none;}
+.row-main{flex:1;min-width:0;}
+.row-name{font-size:14px;font-weight:500;}
+.row-sub{font-size:12px;color:var(--gray-500);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+
+/* BADGES */
+.badge{font-size:11px;font-weight:600;padding:2px 9px;border-radius:100px;white-space:nowrap;flex-shrink:0;}
+.b-in{background:var(--green-light);color:var(--green);}
+.b-out{background:var(--gray-100);color:var(--gray-700);}
+.b-done{background:var(--green-light);color:var(--green);}
+.b-cases{background:var(--blue-pale);color:var(--blue);}
+.b-bin{background:var(--teal-light);color:var(--teal);}
+.b-order{background:var(--purple-light);color:var(--purple);cursor:pointer;}
+.b-noorder{background:var(--gray-100);color:var(--gray-500);cursor:pointer;}
+
+/* CHECK CIRCLE */
+.chk{width:32px;height:32px;border-radius:50%;border:2px solid var(--gray-300);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent;flex-shrink:0;transition:all 0.15s;margin-top:2px;}
+.chk.on{background:var(--green);border-color:var(--green);color:white;}
+
+/* PALLET ACCORDION */
+.pacc{margin-bottom:10px;border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.pacc-head{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--white);cursor:pointer;user-select:none;}
+.pacc-head:hover{background:var(--gray-50);}
+.pnum{width:32px;height:32px;border-radius:50%;background:var(--navy);color:white;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+.pnum.done{background:var(--green);}
+.pacc-info{flex:1;min-width:0;}
+.pacc-title{font-size:14px;font-weight:600;}
+.pacc-sub{font-size:12px;color:var(--gray-500);margin-top:2px;}
+.pchev{font-size:18px;color:var(--gray-500);transition:transform 0.2s;flex-shrink:0;}
+.pchev.open{transform:rotate(90deg);}
+.pacc-body{display:none;background:var(--gray-50);border-top:1px solid var(--gray-200);}
+.pacc-body.open{display:block;}
+.alloc-box{background:var(--blue-pale);border-radius:var(--r-md);padding:14px 18px;margin:14px 18px;text-align:center;}
+.alloc-val{font-size:36px;font-weight:600;color:var(--blue);}
+.alloc-lbl{font-size:12px;color:var(--gray-500);margin-top:4px;font-weight:500;}
+.pick-row{display:flex;align-items:center;gap:8px;padding:9px 18px;border-bottom:1px solid var(--gray-100);font-size:13px;}
+.pick-row:last-child{border-bottom:none;}
+.pick-n{width:24px;height:24px;border-radius:50%;background:var(--gray-200);color:var(--gray-700);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+
+/* LOTTERY */
+.lballs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0;min-height:52px;}
+.lball{width:44px;height:44px;border-radius:50%;background:var(--navy);color:white;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both;}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px 16px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-900);transition:all 0.1s;}
+.btn:hover{background:var(--gray-50);}
+.btn:active{transform:scale(0.99);}
+.btn-primary{background:var(--blue);color:white;border-color:var(--blue);}
+.btn-primary:hover{background:#7c3aed;}
+.btn-navy{background:var(--navy);color:white;border-color:var(--navy);}
+.btn-green{background:var(--green);color:white;border-color:var(--green);}
+.btn-danger{background:var(--red);color:white;border-color:var(--red);}
+.btn-sm{padding:7px 14px;font-size:13px;}
+.btn-row{display:flex;gap:8px;}.btn-row .btn{flex:1;}
+
+/* FORM */
+.field{margin-bottom:14px;}
+.flabel{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:5px;letter-spacing:0.02em;}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:10px 13px;border:1px solid var(--gray-300);border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--gray-900);background:var(--white);outline:none;transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none;}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(109,40,217,0.12);}
+.irow{display:flex;gap:8px;}.irow>*{flex:1;}
+.seg{display:flex;border:1px solid var(--gray-300);border-radius:var(--r-md);overflow:hidden;}
+.seg-btn{flex:1;padding:9px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--gray-500);}
+.seg-btn+.seg-btn{border-left:1px solid var(--gray-300);}
+.seg-btn.active{background:var(--navy);color:white;}
+.hint{font-size:12px;color:var(--gray-500);margin-top:4px;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:none;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--white);border-radius:var(--r-lg);width:100%;max-width:440px;max-height:90vh;overflow-y:auto;padding:24px;animation:fadeIn 0.2s ease;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+@keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:none}}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:18px;}
+.mclose{position:absolute;right:16px;top:16px;background:var(--gray-100);border:none;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray-700);}
+.mclose:hover{background:var(--gray-200);}
+
+/* PRINT STYLES */
+@media print {
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  #app{display:block;height:auto;}
+  #sidebar,#topbar,#dist-subnav,#active-banner,#tab-checkin,#tab-lottery,#tab-pallets,#tab-settings{display:none!important;}
+  #main,#screen-dist,#scroll-area{overflow:visible!important;height:auto!important;display:block!important;}
+  #screen-dist{display:block!important;}
+  #tab-pallets,#tab-checkin{display:none!important;}
+  body{overflow:auto;height:auto;}
+  .screen{display:none!important;}
+  #print-report{display:block!important;padding:0;margin:0;}
+  .pr-section{page-break-inside:avoid;}
+  .pr-table{width:100%;border-collapse:collapse;margin-bottom:0;}
+  .pr-table th{background:#2D1B69!important;color:white!important;padding:8px 12px;text-align:left;font-size:12px;}
+  .pr-table td{padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;}
+  .pr-table tr:nth-child(even) td{background:#F8F9FA!important;}
+  .pr-header{background:#2D1B69!important;color:white!important;-webkit-print-color-adjust:exact!important;}
+  h3.pr-section-title{page-break-before:auto;margin-top:20px;}
+  table{page-break-inside:auto;}
+  tr{page-break-inside:avoid;page-break-after:auto;}
+}
+#print-report{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="sidebar-logo">🍎 Food Bank</div>
+      <div id="sidebar-sub">Distribution Manager</div>
+    </div>
+    <div id="sidebar-sync"></div>
+    <div id="sidebar-dist-section">
+      <div class="sidebar-section-label">Distributions</div>
+      <div id="sidebar-dist-list"></div>
+    </div>
+    <div id="sidebar-footer">
+      <button id="btn-new-dist" class="sfooter-btn" onclick="openManageDists()">⚙ Manage Distributions</button>
+      <button id="btn-item-library" class="sfooter-btn" onclick="openItemLibrary()">📋 Item Library</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <div style="flex:1;">
+        <div id="t-title">Food Bank</div>
+        <div id="t-sub">Select a distribution</div>
+      </div>
+      <div id="t-actions"></div>
+    </div>
+    <div id="active-banner">
+      <span>🟢</span><span id="active-banner-text"></span>
+    </div>
+
+    <!-- HOME -->
+    <div id="screen-home" class="screen active" style="padding:32px 24px;text-align:center;">
+      <div style="padding:80px 24px;color:var(--gray-500);">
+        <div class="empty-icon">📦</div>
+        <div class="empty-title">No distribution selected</div>
+        <div style="font-size:14px;">Choose one from the sidebar or create a new one.</div>
+      </div>
+    </div>
+
+    <!-- DIST VIEW -->
+    <div id="screen-dist" class="screen" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div id="dist-hero" class="hero"></div>
+      <div id="dist-subnav">
+        <button class="tab-btn active" id="nav-checkin" onclick="switchTab('checkin',this)">✅ Check-in</button>
+        <button class="tab-btn" id="nav-lottery" onclick="switchTab('lottery',this)">🎲 Lottery</button>
+        <button class="tab-btn" id="nav-pallets" onclick="switchTab('pallets',this)">📦 Pallets</button>
+        <button class="tab-btn" id="nav-settings" onclick="switchTab('settings',this)">⚙️ Settings</button>
+      </div>
+      <div id="scroll-area">
+
+        <!-- CHECK-IN -->
+        <div id="tab-checkin" class="screen active">
+          <div class="section-hdr">Agencies <span id="ci-badge" style="background:var(--green-light);color:var(--green);padding:2px 10px;border-radius:100px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;"></span></div>
+          <div class="card" id="ci-list"></div>
+          <button class="btn btn-primary" style="max-width:200px;" onclick="openAddAgency()">+ Add Agency</button>
+        </div>
+
+        <!-- LOTTERY -->
+        <div id="tab-lottery" class="screen">
+          <button class="btn btn-navy" style="max-width:240px;margin-bottom:16px;" onclick="runLottery()">🎲 Draw Pick Order</button>
+          <div id="lottery-result"></div>
+        </div>
+
+        <!-- PALLETS -->
+        <div id="tab-pallets" class="screen">
+          <button class="btn btn-primary" style="max-width:200px;margin-bottom:16px;" onclick="openAddPallet()">+ Add Pallet</button>
+          <div id="pallet-list"></div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div id="tab-settings" class="screen">
+          <div style="max-width:480px;">
+            <div class="card card-pad" style="margin-bottom:14px;">
+              <div class="field"><div class="flabel">Distribution Name</div><input type="text" id="s-name" oninput="autoSave()"></div>
+              <div class="field" style="margin-bottom:0;">
+                <div class="flabel">Notes</div>
+                <textarea id="s-notes" rows="3" oninput="autoSave()" style="resize:vertical;" placeholder="Optional notes about this distribution..."></textarea>
+              </div>
+            </div>
+            <div class="card card-pad" style="margin-bottom:14px;">
+              <div class="flabel" style="margin-bottom:10px;">This week's active distribution</div>
+              <div style="font-size:13px;color:var(--gray-700);margin-bottom:12px;">Mark this distribution as currently active so it's highlighted in the sidebar.</div>
+              <button class="btn btn-primary" id="btn-set-active" onclick="setActive()" style="max-width:260px;"></button>
+            </div>
+            <div class="card card-pad" style="margin-bottom:14px;border-color:#fde68a;background:#fffbeb;">
+              <div class="flabel" style="margin-bottom:6px;color:#92400e;">🔒 Close Week</div>
+              <div style="font-size:13px;color:#78350f;margin-bottom:12px;">Closes this week's distribution. Clears check-ins, lottery, orders and pallets — keeps agencies and groups for next time.</div>
+              <button class="btn btn-sm" style="max-width:220px;border-color:#d97706;color:#92400e;background:white;" onclick="confirmCloseWeek()">Close This Week</button>
+            </div>
+            <div style="display:flex;gap:8px;max-width:480px;">
+              <button class="btn" onclick="printReport()">🖨️ Print Report</button>
+              <button class="btn btn-danger" style="max-width:160px;" onclick="confirmDelete()">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRINT REPORT (hidden, shown only on print) -->
+        <div id="print-report"></div>
+
+      </div><!-- /scroll-area -->
+    </div><!-- /screen-dist -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MANAGE DISTRIBUTIONS MODAL -->
+<div class="overlay" id="m-manage-dists">
+  <div class="modal" style="max-width:500px;">
+    <button class="mclose" onclick="closeModal('m-manage-dists')">×</button>
+    <div class="modal-title">Manage Distributions</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Add all your distribution sites here. They'll appear in the sidebar and you can set which one is active each week.</p>
+    <div id="mgr-dist-list" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="flex:1;"><div class="flabel">Distribution Name</div><input type="text" id="mgr-new-name" placeholder="e.g. Site A — North Campus" onkeydown="if(event.key==='Enter')addManagedDist()"></div>
+      <button class="btn btn-primary btn-sm" style="width:auto;flex-shrink:0;padding:10px 16px;" onclick="addManagedDist()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD AGENCY MODAL -->
+<div class="overlay" id="m-add-agency">
+  <div class="modal">
+    <button class="mclose" onclick="closeModal('m-add-agency')">×</button>
+    <div class="modal-title">Add Agency</div>
+    <div class="field"><div class="flabel">Agency Number</div><input type="text" id="aa-num" placeholder="e.g. A-042"></div>
+    <div class="field"><div class="flabel">Agency Name</div><input type="text" id="aa-name" placeholder="Enter agency name"></div>
+    <div class="field" style="margin-bottom:0;">
+      <div class="flabel">Pickup Group <span style="font-weight:400;color:var(--gray-500);">(optional)</span></div>
+      <input type="text" id="aa-group" placeholder="e.g. Group A — leave blank if picking up alone">
+      <div class="hint">Agencies sharing a group name get one lottery number but each receive their own allocation.</div>
+    </div>
+    <div style="margin-top:16px"><button class="btn btn-primary" onclick="addAgency()">Add Agency</button></div>
+  </div>
+</div>
+
+<!-- ADD PALLET MODAL -->
+<div class="overlay" id="m-add-pallet" style="align-items:flex-start;padding-top:40px;">
+  <div class="modal" style="max-height:80vh;">
+    <button class="mclose" onclick="closeModal('m-add-pallet')">×</button>
+    <div class="modal-title" id="ap-modal-title">Add Pallet</div>
+    <div class="field">
+      <div class="flabel">Quick-fill from library</div>
+      <select id="ap-preset" onchange="applyPreset()">
+        <option value="">— choose an item —</option>
+      </select>
+    </div>
+    <div class="field"><div class="flabel">Description</div><input type="text" id="ap-desc" placeholder="e.g. Canned Vegetables"></div>
+    <div class="field">
+      <div class="flabel">Type</div>
+      <div class="seg" style="margin-top:6px">
+        <button class="seg-btn active" id="ap-cases" onclick="setPType('cases')">Cases</button>
+        <button class="seg-btn" id="ap-bin" onclick="setPType('bin')">Bin (weight)</button>
+      </div>
+    </div>
+    <div id="cases-sec">
+      <div class="field"><div class="flabel">Manual Case Count</div><input type="number" id="ap-manual" placeholder="e.g. 48" min="0"></div>
+      <div style="text-align:center;color:var(--gray-500);font-size:13px;margin:-4px 0 12px">— or stack math —</div>
+      <div class="field">
+        <div class="flabel">Rows × Columns × Layers</div>
+        <div class="irow">
+          <input type="number" id="ap-rows" placeholder="Rows" min="0">
+          <input type="number" id="ap-cols" placeholder="Cols" min="0">
+          <input type="number" id="ap-layers" placeholder="Layers" min="0">
+        </div>
+      </div>
+    </div>
+    <div id="bin-sec" style="display:none">
+      <div class="field"><div class="flabel">Total Weight (lbs)</div><input type="number" id="ap-wt" placeholder="e.g. 320" min="0"></div>
+      <div class="field"><div class="flabel">Avg Unit Weight (lbs)</div><input type="number" id="ap-uwt" placeholder="e.g. 1.5" min="0" step="0.01"><div class="hint">Units = total weight ÷ avg unit weight</div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="addPallet()">Add Pallet</button>
+  </div>
+</div>
+
+<!-- ITEM LIBRARY MODAL -->
+<div class="overlay" id="m-item-library">
+  <div class="modal" style="max-width:500px;">
+    <button class="mclose" onclick="closeModal('m-item-library')">×</button>
+    <div class="modal-title">Item Library</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">These items appear as quick-fill options when adding pallets.</p>
+    <div id="lib-list" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="flex:1;"><div class="flabel">New Item Name</div><input type="text" id="lib-new-name" placeholder="e.g. Canned Vegetables" onkeydown="if(event.key==='Enter')addLibItem()"></div>
+      <button class="btn btn-primary btn-sm" style="width:auto;flex-shrink:0;padding:10px 16px;" onclick="addLibItem()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT GROUP MODAL -->
+<div class="overlay" id="m-edit-group">
+  <div class="modal" style="max-width:380px;">
+    <button class="mclose" onclick="closeModal('m-edit-group')">×</button>
+    <div class="modal-title">Pickup Group</div>
+    <div style="font-size:13px;color:var(--gray-700);margin-bottom:16px;">Agency: <strong id="eg-agency-name"></strong></div>
+    <div class="field" style="margin-bottom:0;">
+      <div class="flabel">Group Name</div>
+      <input type="text" id="eg-group" placeholder="e.g. Group A" list="eg-group-list" autocomplete="off">
+      <datalist id="eg-group-list"></datalist>
+      <div class="hint">Leave blank to remove from any group. Existing group names appear as suggestions.</div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" id="eg-save">Save</button>
+      <button class="btn" onclick="closeModal('m-edit-group')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PALLET QTY MODAL -->
+<div class="overlay" id="m-edit-pallet">
+  <div class="modal" style="max-width:360px;">
+    <button class="mclose" onclick="closeModal('m-edit-pallet')">×</button>
+    <div class="modal-title">Edit Quantity</div>
+    <div style="font-size:13px;color:var(--gray-700);margin-bottom:14px;">Pallet: <strong id="ep-desc"></strong></div>
+    <div class="field" style="margin-bottom:0;">
+      <div class="flabel">New Quantity</div>
+      <input type="number" id="ep-qty" min="0" step="0.01" placeholder="e.g. 48">
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" id="ep-save">Save</button>
+      <button class="btn" onclick="closeModal('m-edit-pallet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="overlay" id="m-confirm">
+  <div class="modal">
+    <div class="modal-title" id="conf-title">Are you sure?</div>
+    <div id="conf-msg" style="font-size:14px;color:var(--gray-700);margin-bottom:20px"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="closeModal('m-confirm')">Cancel</button>
+      <button class="btn btn-danger" id="conf-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STRIPES=['#6D28D9','#C47A1E','#0E7490','#1A6E42','#922B21','#1A5E8F','#7C3AED','#B45309','#0F766E','#15803D','#B91C1C','#1D4ED8'];
+const GH_TOKEN='github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
+const GH_API='https://api.github.com/repos/fbccs-internal/publicappdata/contents/CheckinPallets/data.json';
+
+let db={distributions:[],activeDistId:null,itemLibrary:[]};
+let cur=null;
+let newPType='cases';
+let remoteSha=null, syncTimer=null;
+
+// SYNC
+function setSyncState(state){
+  const el=document.getElementById('sidebar-sync');if(!el)return;
+  const S={idle:['','transparent'],syncing:['⟳ Syncing…','rgba(255,255,255,0.4)'],saved:['✓ Saved','#4ade80'],conflict:['⚠ Conflict','#fbbf24'],error:['✕ Error','#f87171']};
+  const[text,color]=S[state]||S.idle;
+  el.textContent=text;el.style.color=color;
+  if(state==='saved')setTimeout(()=>setSyncState('idle'),3000);
+}
+async function ghGet(){
+  const res=await fetch(GH_API,{headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json'}});
+  if(res.status===404){remoteSha=null;return null;}
+  if(!res.ok)throw new Error('GH GET '+res.status);
+  const json=await res.json();
+  remoteSha=json.sha;
+  return JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g,'')))));
+}
+async function ghPut(retrying){
+  setSyncState('syncing');
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(db))));
+  const body={message:'CheckinPallets data update',content};
+  if(remoteSha)body.sha=remoteSha;
+  const res=await fetch(GH_API,{method:'PUT',headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.status===409&&!retrying){
+    try{const remote=await ghGet();if(remote){db=remote;try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}renderSidebar();}setSyncState('conflict');setTimeout(()=>ghPut(true),500);}catch(e){setSyncState('error');}
+    return;
+  }
+  if(!res.ok){setSyncState('error');return;}
+  const json=await res.json();remoteSha=json.content.sha;setSyncState('saved');
+}
+function save(){
+  try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}
+  clearTimeout(syncTimer);setSyncState('syncing');
+  syncTimer=setTimeout(()=>ghPut(false),1500);
+}
+function load(){
+  try{const r=localStorage.getItem('fb_db');if(r)db=JSON.parse(r)}catch(e){}
+  renderSidebar();renderActiveBanner();
+  ghGet().then(remote=>{
+    if(remote){db=remote;try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}renderSidebar();renderActiveBanner();}
+    setSyncState('idle');
+  }).catch(()=>{});
+}
+
+function uid(){return Date.now()+Math.random().toString(36).slice(2,6)}
+function fmtDate(d){
+  if(!d)return'';const[y,m,day]=d.split('-');
+  return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+parseInt(day)+', '+y;
+}
+function fmtNow(){return fmtDate(new Date().toISOString().slice(0,10));}
+function getDist(){return db.distributions.find(d=>d.id===cur)}
+function calcAlloc(dist,qty){
+  const cset=new Set(dist.checkedIn||[]);
+  const count=(dist.agencies||[]).filter(a=>cset.has(a.id)).length;
+  if(!count)return{perAgency:0,count:0};
+  return{perAgency:Math.round(qty/count*100)/100,count};
+}
+
+// ACTIVE DISTRIBUTION
+function setActive(){
+  const d=getDist();if(!d)return;
+  if(db.activeDistId===d.id){db.activeDistId=null;}
+  else{db.activeDistId=d.id;}
+  save();renderSidebar();renderDistHero();renderActiveBanner();renderSettingsActiveBtn();
+}
+function renderActiveBanner(){
+  const banner=document.getElementById('active-banner');
+  const txt=document.getElementById('active-banner-text');
+  if(db.activeDistId){
+    const d=db.distributions.find(x=>x.id===db.activeDistId);
+    if(d){banner.classList.add('show');txt.textContent=`Active this week: ${d.name}`;return;}
+  }
+  banner.classList.remove('show');
+}
+function renderSettingsActiveBtn(){
+  const d=getDist();if(!d)return;
+  const btn=document.getElementById('btn-set-active');if(!btn)return;
+  const isActive=db.activeDistId===d.id;
+  btn.textContent=isActive?'✓ Currently Active — Click to Deactivate':'Set as This Week\'s Active Distribution';
+  btn.className='btn btn-sm '+(isActive?'btn-green':'btn-primary');
+  btn.style.maxWidth='320px';
+}
+
+// SIDEBAR
+function renderSidebar(){
+  const list=document.getElementById('sidebar-dist-list');list.innerHTML='';
+  if(!db.distributions.length){
+    list.innerHTML='<div style="padding:8px 16px;font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;">No distributions yet</div>';
+    return;
+  }
+  db.distributions.forEach((d,i)=>{
+    const isActive=db.activeDistId===d.id;
+    const div=document.createElement('div');
+    div.className='sidebar-dist-item'+(d.id===cur?' active-view':'');
+    div.onclick=()=>openDist(d.id);
+    div.innerHTML=`<div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]}"></div>
+      <div class="sdi-info">
+        <div class="sdi-name">${d.name}</div>
+        <div class="sdi-status" style="color:rgba(255,255,255,${isActive?'0.7':'0.3'});">${isActive?'🟢 Active this week':'—'}</div>
+      </div>
+      ${isActive?'<div class="sdi-active-badge">ACTIVE</div>':''}`;
+    list.appendChild(div);
+  });
+}
+
+function openDist(id){
+  cur=id;const dist=getDist();if(!dist)return;
+  document.getElementById('screen-home').classList.remove('active');
+  document.getElementById('screen-dist').classList.add('active');
+  document.getElementById('t-title').textContent=dist.name;
+  document.getElementById('t-sub').textContent=db.activeDistId===dist.id?'Active this week':'';
+  ['checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-checkin').classList.add('active');
+  document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav-checkin').classList.add('active');
+  renderSidebar();renderDistHero();renderCheckin();
+  document.getElementById('scroll-area').scrollTop=0;
+}
+
+function switchTab(tab,btn){
+  ['checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('scroll-area').scrollTop=0;
+  if(tab==='checkin')renderCheckin();
+  else if(tab==='lottery')renderLottery();
+  else if(tab==='pallets')renderPallets();
+  else if(tab==='settings')renderSettings();
+}
+
+// MANAGE DISTRIBUTIONS
+function openManageDists(){
+  renderMgrDistList();
+  document.getElementById('mgr-new-name').value='';
+  openModal('m-manage-dists');
+  setTimeout(()=>document.getElementById('mgr-new-name').focus(),200);
+}
+function renderMgrDistList(){
+  const el=document.getElementById('mgr-dist-list');
+  if(!db.distributions.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No distributions yet. Add your first one below.</div>';
+    return;
+  }
+  el.innerHTML='<div class="card" style="margin:0;">'
+    +db.distributions.map((d,i)=>`
+      <div class="row-item" style="align-items:center;">
+        <div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]};width:10px;height:10px;border-radius:50%;flex-shrink:0;"></div>
+        <div class="row-main">
+          <div style="font-size:14px;font-weight:500;">${d.name}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${(d.agencies||[]).length} agencies · ${(d.pallets||[]).length} pallets${db.activeDistId===d.id?' · <span style="color:var(--green);font-weight:600;">Active</span>':''}</div>
+        </div>
+        <button onclick="removeManagedDist('${d.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+      </div>`).join('')
+    +'</div>';
+}
+function addManagedDist(){
+  const name=document.getElementById('mgr-new-name').value.trim();
+  if(!name)return;
+  const dist={id:uid(),name,agencies:[],pallets:[],checkedIn:[],pickOrder:[],palletsDone:{},orderStatus:{},notes:''};
+  db.distributions.push(dist);
+  save();
+  document.getElementById('mgr-new-name').value='';
+  renderMgrDistList();
+  renderSidebar();
+}
+function removeManagedDist(id){
+  if(db.activeDistId===id)db.activeDistId=null;
+  db.distributions=db.distributions.filter(x=>x.id!==id);
+  if(cur===id){
+    cur=null;
+    document.getElementById('screen-dist').classList.remove('active');
+    document.getElementById('screen-home').classList.add('active');
+    document.getElementById('t-title').textContent='Food Bank';
+    document.getElementById('t-sub').textContent='Select a distribution';
+  }
+  save();renderMgrDistList();renderSidebar();renderActiveBanner();
+}
+
+// HERO
+function renderDistHero(){
+  const d=getDist();if(!d)return;
+  const cin=(d.checkedIn||[]).length,tot=(d.agencies||[]).length;
+  const pdone=Object.values(d.palletsDone||{}).filter(Boolean).length,tp=(d.pallets||[]).length;
+  const orders=Object.values(d.orderStatus||{}).filter(Boolean).length;
+  const isActive=db.activeDistId===d.id;
+  document.getElementById('dist-hero').innerHTML=`
+    <div class="hero-label">DISTRIBUTION</div>
+    <div class="hero-name">${d.name}${isActive?'<span class="hero-active-pill">ACTIVE</span>':''}</div>
+    <div class="hero-grid">
+      <div class="hstat"><div class="hstat-val">${cin}/${tot}</div><div class="hstat-lbl">Checked in</div></div>
+      <div class="hstat"><div class="hstat-val">${pdone}/${tp}</div><div class="hstat-lbl">Pallets done</div></div>
+      <div class="hstat"><div class="hstat-val">${orders}</div><div class="hstat-lbl">Orders</div></div>
+    </div>`;
+}
+
+// CHECK-IN
+function renderCheckin(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cset=new Set(d.checkedIn||[]),omap=d.orderStatus||{};
+  const list=document.getElementById('ci-list');list.innerHTML='';
+  document.getElementById('ci-badge').textContent=`${cset.size} / ${(d.agencies||[]).length}`;
+  if(!(d.agencies||[]).length){list.innerHTML='<div style="text-align:center;padding:28px;color:var(--gray-500);"><div style="font-weight:600;color:var(--gray-700);margin-bottom:4px;">No agencies yet</div>Add agencies below.</div>';return}
+  const sorted=[...d.agencies].sort((a,b)=>a.name.localeCompare(b.name));
+  sorted.forEach(a=>{
+    const checked=cset.has(a.id),hasOrder=!!omap[a.id];
+    const groupBadge=a.group?`<span style="font-size:11px;font-weight:600;background:#FEF3DC;color:#C47A1E;padding:2px 8px;border-radius:100px;cursor:pointer;" onclick="openEditGroup('${a.id}')">👥 ${a.group}</span>`:`<span style="font-size:11px;color:var(--gray-500);cursor:pointer;text-decoration:underline;text-underline-offset:2px;" onclick="openEditGroup('${a.id}')">+ group</span>`;
+    const row=document.createElement('div');row.className='row-item';
+    row.innerHTML=`
+      <button class="chk ${checked?'on':''}" onclick="toggleCheckin('${a.id}')">✓</button>
+      <div class="row-main">
+        <div class="row-name">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${a.num}</span>`:''}${a.name}</div>
+        <div class="row-sub">
+          <span class="badge ${checked?'b-in':'b-out'}">${checked?'Checked in':'Pending'}</span>
+          ${groupBadge}
+          <span class="badge ${hasOrder?'b-order':'b-noorder'}" onclick="toggleOrder('${a.id}')">${hasOrder?'📋 Order pickup':'No order'}</span>
+        </div>
+      </div>
+      <button onclick="removeAgency('${a.id}')" style="background:none;border:none;color:var(--gray-300);font-size:20px;cursor:pointer;padding:4px 2px;line-height:1;flex-shrink:0;margin-top:2px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>`;
+    list.appendChild(row);
+  });
+}
+function toggleCheckin(id){const d=getDist();if(!d)return;d.checkedIn=d.checkedIn||[];const i=d.checkedIn.indexOf(id);if(i>=0)d.checkedIn.splice(i,1);else d.checkedIn.push(id);save();renderCheckin()}
+function toggleOrder(id){const d=getDist();if(!d)return;d.orderStatus=d.orderStatus||{};d.orderStatus[id]=!d.orderStatus[id];save();renderCheckin()}
+function openAddAgency(){
+  document.getElementById('aa-num').value='';
+  document.getElementById('aa-name').value='';
+  document.getElementById('aa-group').value='';
+  openModal('m-add-agency');
+  setTimeout(()=>document.getElementById('aa-num').focus(),200);
+}
+function addAgency(){
+  const name=document.getElementById('aa-name').value.trim();if(!name)return;
+  const num=document.getElementById('aa-num').value.trim();
+  const group=document.getElementById('aa-group').value.trim();
+  const d=getDist();if(!d)return;
+  d.agencies=d.agencies||[];d.agencies.push({id:uid(),num,name,group:group||''});
+  save();closeModal('m-add-agency');renderCheckin();
+}
+function removeAgency(id){
+  const d=getDist();if(!d)return;
+  d.agencies=(d.agencies||[]).filter(a=>a.id!==id);
+  d.checkedIn=(d.checkedIn||[]).filter(i=>i!==id);
+  d.pickOrder=(d.pickOrder||[]).filter(i=>i!==id);
+  delete (d.orderStatus||{})[id];
+  save();renderCheckin();
+}
+
+// EDIT GROUP
+function openEditGroup(id){
+  const d=getDist();if(!d)return;
+  const a=d.agencies.find(x=>x.id===id);if(!a)return;
+  // Collect existing group names for datalist suggestions
+  const groups=[...new Set((d.agencies||[]).map(x=>x.group).filter(Boolean))].sort();
+  const dl=document.getElementById('eg-group-list');
+  dl.innerHTML=groups.map(g=>`<option value="${g}">`).join('');
+  document.getElementById('eg-agency-name').textContent=`${a.num?a.num+' ':''}${a.name}`;
+  document.getElementById('eg-group').value=a.group||'';
+  document.getElementById('eg-save').onclick=()=>{
+    a.group=document.getElementById('eg-group').value.trim();
+    save();closeModal('m-edit-group');renderCheckin();
+  };
+  openModal('m-edit-group');
+  setTimeout(()=>document.getElementById('eg-group').focus(),200);
+}
+
+// LOTTERY HELPERS
+function buildLotterySlots(d){
+  const cset=new Set(d.checkedIn||[]);
+  const agencies=(d.agencies||[]).filter(a=>cset.has(a.id));
+  const groupMap={};
+  const solos=[];
+  agencies.forEach(a=>{
+    if(a.group){if(!groupMap[a.group])groupMap[a.group]=[];groupMap[a.group].push(a);}
+    else{solos.push(a);}
+  });
+  const slots=[];
+  Object.entries(groupMap).forEach(([name,ags])=>slots.push({type:'group',name,agencies:ags}));
+  solos.forEach(a=>slots.push({type:'solo',agency:a}));
+  return slots;
+}
+function slotDisplay(slot){
+  if(slot.type==='group'){
+    const members=slot.agencies.map(a=>(a.num?a.num+' ':'')+a.name).join(', ');
+    return `<strong>👥 ${slot.name}</strong>&nbsp;<span style="font-size:12px;color:var(--gray-500);">(${members})</span>`;
+  }
+  const a=slot.agency;
+  return `${a.num?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);margin-right:4px">${a.num}</span>`:''}${a.name}`;
+}
+function slotAlloc(slot,perAgency,unit){
+  if(slot.type==='group'){
+    const total=Math.round(perAgency*slot.agencies.length*100)/100;
+    return `<span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue);margin-left:auto;padding-left:8px;">${total} ${unit}</span><span style="font-size:11px;color:var(--gray-500);margin-left:4px;">(${slot.agencies.length}×${perAgency})</span>`;
+  }
+  return `<span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue);margin-left:auto;padding-left:8px;">${perAgency} ${unit}</span>`;
+}
+function slotsFromPickOrder(d){
+  const slots=buildLotterySlots(d);
+  return (d.pickOrder||[]).map(key=>{
+    if(key.startsWith('group:')){const name=key.slice(6);return slots.find(s=>s.type==='group'&&s.name===name);}
+    else{const aid=key.slice(5);return slots.find(s=>s.type==='solo'&&s.agency.id===aid);}
+  }).filter(Boolean);
+}
+
+function runLottery(){
+  const d=getDist();if(!d)return;
+  const slots=buildLotterySlots(d);
+  const el=document.getElementById('lottery-result');
+  if(slots.length<2){el.innerHTML='<div class="card card-pad" style="color:var(--gray-700);">Check in at least 2 agencies (or groups) first.</div>';return}
+  const sh=[...slots].sort(()=>Math.random()-0.5);
+  d.pickOrder=sh.map(s=>s.type==='group'?`group:${s.name}`:`solo:${s.agency.id}`);
+  save();
+  let h=`<div class="lballs">`;sh.forEach((_,i)=>h+=`<div class="lball" style="animation-delay:${i*0.08}s">${i+1}</div>`);h+=`</div>`;
+  h+=`<div class="section-hdr" style="margin-top:8px;">Pick order</div><div class="card" style="overflow:hidden;max-width:560px;">`;
+  sh.forEach((slot,i)=>{
+    const bg=i===0?'background:var(--blue-pale)':'';
+    const numBg=i===0?'var(--blue)':'var(--gray-200)';
+    const numCol=i===0?'white':'var(--gray-700)';
+    h+=`<div class="row-item" style="${bg}">
+      <div style="width:28px;height:28px;border-radius:50%;background:${numBg};color:${numCol};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${i+1}</div>
+      <div class="row-main"><div class="row-name" style="font-size:13px;">${slotDisplay(slot)}</div></div>
+    </div>`;
+  });
+  h+=`</div>`;el.innerHTML=h;renderDistHero();
+}
+function renderLottery(){
+  const d=getDist();if(!d)return;
+  const el=document.getElementById('lottery-result');
+  if(!(d.pickOrder||[]).length){el.innerHTML='';return}
+  const ord=slotsFromPickOrder(d);
+  if(!ord.length){el.innerHTML='';return}
+  let h=`<div class="lballs">`;ord.forEach((_,i)=>h+=`<div class="lball">${i+1}</div>`);h+=`</div>`;
+  h+=`<div class="section-hdr" style="margin-top:8px;">Pick order</div><div class="card" style="overflow:hidden;max-width:560px;">`;
+  ord.forEach((slot,i)=>{
+    const bg=i===0?'background:var(--blue-pale)':'';
+    const numBg=i===0?'var(--blue)':'var(--gray-200)';
+    const numCol=i===0?'white':'var(--gray-700)';
+    h+=`<div class="row-item" style="${bg}">
+      <div style="width:28px;height:28px;border-radius:50%;background:${numBg};color:${numCol};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${i+1}</div>
+      <div class="row-main"><div class="row-name" style="font-size:13px;">${slotDisplay(slot)}</div></div>
+    </div>`;
+  });
+  h+=`</div>`;el.innerHTML=h;
+}
+
+// PALLETS
+function openAddPallet(){
+  ['ap-desc','ap-manual','ap-rows','ap-cols','ap-layers','ap-wt','ap-uwt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+  newPType='cases';document.getElementById('ap-cases').classList.add('active');document.getElementById('ap-bin').classList.remove('active');
+  document.getElementById('cases-sec').style.display='block';document.getElementById('bin-sec').style.display='none';
+  populatePresetDropdown();
+  document.getElementById('ap-preset').value='';
+  openModal('m-add-pallet');setTimeout(()=>document.getElementById('ap-desc').focus(),200);
+}
+function setPType(t){
+  newPType=t;document.getElementById('ap-cases').classList.toggle('active',t==='cases');document.getElementById('ap-bin').classList.toggle('active',t==='bin');
+  document.getElementById('cases-sec').style.display=t==='cases'?'block':'none';document.getElementById('bin-sec').style.display=t==='bin'?'block':'none';
+}
+function addPallet(){
+  const desc=document.getElementById('ap-desc').value.trim();if(!desc)return;
+  const d=getDist();if(!d)return;let qty=0;
+  if(newPType==='cases'){
+    const m=parseFloat(document.getElementById('ap-manual').value)||0;
+    const r=parseFloat(document.getElementById('ap-rows').value)||0,c=parseFloat(document.getElementById('ap-cols').value)||0,l=parseFloat(document.getElementById('ap-layers').value)||0;
+    qty=m>0?m:r*c*l;
+  }else{
+    const wt=parseFloat(document.getElementById('ap-wt').value)||0,uw=parseFloat(document.getElementById('ap-uwt').value)||1;qty=uw>0?wt/uw:0;
+  }
+  d.pallets=d.pallets||[];d.pallets.push({id:uid(),desc,type:newPType,qty:Math.round(qty*100)/100});
+  save();closeModal('m-add-pallet');renderPallets();renderDistHero();
+}
+function removePallet(id){const d=getDist();if(!d)return;d.pallets=(d.pallets||[]).filter(p=>p.id!==id);delete (d.palletsDone||{})[id];save();renderPallets();renderDistHero()}
+function togglePalletDone(id){const d=getDist();if(!d)return;d.palletsDone=d.palletsDone||{};d.palletsDone[id]=!d.palletsDone[id];save();renderPallets();renderDistHero()}
+function openEditPalletQty(id){
+  const d=getDist();if(!d)return;
+  const p=d.pallets.find(x=>x.id===id);if(!p)return;
+  document.getElementById('ep-desc').textContent=p.desc;
+  document.getElementById('ep-qty').value=p.qty;
+  document.getElementById('ep-save').onclick=()=>{
+    const v=parseFloat(document.getElementById('ep-qty').value);
+    if(isNaN(v)||v<0)return;
+    p.qty=Math.round(v*100)/100;
+    save();closeModal('m-edit-pallet');renderPallets();renderDistHero();
+  };
+  openModal('m-edit-pallet');
+  setTimeout(()=>{const el=document.getElementById('ep-qty');el.focus();el.select();},200);
+}
+function confirmCloseWeek(){
+  const d=getDist();if(!d)return;
+  document.getElementById('conf-title').textContent='Close This Week?';
+  document.getElementById('conf-msg').textContent=`This will clear all check-ins, the lottery order, order flags, and pallets for "${d.name}". Agencies and groups will be kept for next week.`;
+  document.getElementById('conf-ok').textContent='Close Week';
+  document.getElementById('conf-ok').className='btn btn-danger';
+  document.getElementById('conf-ok').onclick=()=>{
+    d.checkedIn=[];
+    d.pickOrder=[];
+    d.pallets=[];
+    d.palletsDone={};
+    d.orderStatus={};
+    if(db.activeDistId===d.id)db.activeDistId=null;
+    save();closeModal('m-confirm');
+    renderDistHero();renderCheckin();renderSidebar();renderActiveBanner();
+    switchTab('checkin',document.getElementById('nav-checkin'));
+  };
+  openModal('m-confirm');
+}
+function togglePalletBody(id){
+  const body=document.getElementById('pb-'+id),chev=document.getElementById('pc-'+id),open=body.classList.contains('open');
+  document.querySelectorAll('.pacc-body').forEach(b=>b.classList.remove('open'));
+  document.querySelectorAll('.pchev').forEach(c=>c.classList.remove('open'));
+  if(!open){body.classList.add('open');chev.classList.add('open')}
+}
+function renderPallets(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cont=document.getElementById('pallet-list');cont.innerHTML='';
+  if(!(d.pallets||[]).length){cont.innerHTML='<div style="text-align:center;padding:28px 0;color:var(--gray-500);"><div style="font-weight:600;color:var(--gray-700);margin-bottom:4px;">No pallets yet</div>Add pallets below.</div>';return}
+  const omap=d.orderStatus||{};
+  const ordSlots=slotsFromPickOrder(d);
+  (d.pallets||[]).forEach((p,i)=>{
+    const done=!!(d.palletsDone||{})[p.id],alloc=calcAlloc(d,p.qty),unit=p.type==='bin'?'units':'cases';
+    const pickRows=ordSlots.length?ordSlots.map((slot,idx)=>{
+      const hasOrder=slot.type==='solo'&&omap[slot.agency.id];
+      const orderIcon=hasOrder?'<span style="font-size:11px;color:var(--purple);margin-left:3px">📋</span>':'';
+      return `<div class="pick-row">
+        <div class="pick-n">${idx+1}</div>
+        <span style="flex:1;font-size:13px;">${slotDisplay(slot)}${orderIcon}</span>
+        ${slotAlloc(slot,alloc.perAgency,unit)}
+      </div>`;
+    }).join(''):`<div style="padding:12px 18px;font-size:13px;color:var(--gray-500);font-style:italic">Run the lottery to see pick order.</div>`;
+    const acc=document.createElement('div');acc.className='pacc';acc.style.opacity=done?'0.6':'1';
+    acc.innerHTML=`
+      <div class="pacc-head" onclick="togglePalletBody('${p.id}')">
+        <div class="pnum ${done?'done':''}">${i+1}</div>
+        <div class="pacc-info">
+          <div class="pacc-title">${p.desc} <span class="badge ${p.type==='bin'?'b-bin':'b-cases'}" style="font-size:10px;padding:1px 7px">${p.type==='bin'?'Bin':'Cases'}</span></div>
+          <div class="pacc-sub">${p.qty} ${unit} total · ${alloc.count} agencies · <strong>${alloc.perAgency} ${unit} each</strong> · ${done?'Complete':'Pending'}</div>
+        </div>
+        ${done?'<span class="badge b-done">Done</span>':''}
+        <span class="pchev" id="pc-${p.id}">›</span>
+      </div>
+      <div class="pacc-body" id="pb-${p.id}">
+        <div class="alloc-box">
+          <div class="alloc-val">${alloc.perAgency} <span style="font-size:20px">${unit}</span></div>
+          <div class="alloc-lbl">per agency (${alloc.count} checked-in agencies)</div>
+        </div>
+        <div style="padding:8px 0">
+          <div style="padding:0 18px 6px"><div class="section-hdr" style="margin:0">Pick order &amp; allocation</div></div>
+          ${pickRows}
+        </div>
+        <div style="padding:10px 18px;display:flex;gap:8px">
+          <button class="btn ${done?'':'btn-green'} btn-sm" style="flex:1" onclick="togglePalletDone('${p.id}');event.stopPropagation()">${done?'Mark Incomplete':'✓ Mark Complete'}</button>
+          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--blue);border-color:var(--blue)" onclick="openEditPalletQty('${p.id}');event.stopPropagation()">✏ Qty</button>
+          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--red);border-color:var(--red)" onclick="removePallet('${p.id}');event.stopPropagation()">✕</button>
+        </div>
+      </div>`;
+    cont.appendChild(acc);
+  });
+}
+
+// SETTINGS
+function renderSettings(){
+  const d=getDist();if(!d)return;
+  document.getElementById('s-name').value=d.name||'';
+  document.getElementById('s-notes').value=d.notes||'';
+  renderSettingsActiveBtn();
+}
+function autoSave(){
+  const d=getDist();if(!d)return;
+  d.name=document.getElementById('s-name').value.trim()||d.name;
+  d.notes=document.getElementById('s-notes').value;
+  save();
+  document.getElementById('t-title').textContent=d.name;
+  renderDistHero();renderSidebar();
+}
+function confirmDelete(){
+  const d=getDist();if(!d)return;
+  document.getElementById('conf-title').textContent='Delete Distribution?';
+  document.getElementById('conf-msg').textContent=`"${d.name}" and all its data will be permanently deleted.`;
+  document.getElementById('conf-ok').onclick=()=>{
+    closeModal('m-confirm');
+    removeManagedDist(cur);
+  };
+  openModal('m-confirm');
+}
+
+// PRINT REPORT
+function printReport(){
+  const d=getDist();if(!d)return;
+  const cset=new Set(d.checkedIn||[]);
+  const omap=d.orderStatus||{};
+  const allAgencies=[...d.agencies||[]].sort((a,b)=>a.name.localeCompare(b.name));
+  const checkedIn=allAgencies.filter(a=>cset.has(a.id));
+
+  const agencyRows=allAgencies.map(a=>{
+    const checked=cset.has(a.id);
+    const hasOrder=!!omap[a.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.num||''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.name}${a.group?` <span style="font-size:11px;color:#C47A1E;">(${a.group})</span>`:''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${checked?'✓':''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${hasOrder?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  const palletRows=(d.pallets||[]).map((p,i)=>{
+    const alloc=calcAlloc(d,p.qty);
+    const unit=p.type==='bin'?'units':'cases';
+    const done=!!(d.palletsDone||{})[p.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${i+1}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.desc}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.qty} ${unit}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${alloc.count}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;"><strong>${alloc.perAgency} ${unit}</strong></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${done?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  const reportHTML=`
+    <div style="font-family:'DM Sans',sans-serif;color:#202124;">
+      <div class="pr-header" style="background:#2D1B69;color:white;padding:20px 24px;margin-bottom:20px;page-break-after:avoid;">
+        <div style="font-size:11px;opacity:0.5;margin-bottom:4px;letter-spacing:0.06em;font-family:monospace;">DISTRIBUTION REPORT · ${fmtNow()}</div>
+        <div style="font-size:22px;font-weight:700;">${d.name}</div>
+        <div style="margin-top:10px;font-size:13px;opacity:0.8;display:flex;gap:24px;">
+          <span>${checkedIn.length} of ${allAgencies.length} agencies checked in</span>
+          <span>${(d.pallets||[]).length} pallets</span>
+          <span>${Object.values(d.orderStatus||{}).filter(Boolean).length} orders</span>
+        </div>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Agencies</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agency #</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Name</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Checked In</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Order Pickup</th>
+            </tr>
+          </thead>
+          <tbody>${agencyRows||'<tr><td colspan="4" style="padding:12px;color:#9AA0A6;font-style:italic;">No agencies</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Pallet Allocations</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">#</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Description</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Total</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agencies</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Per Agency</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Done</th>
+            </tr>
+          </thead>
+          <tbody>${palletRows||'<tr><td colspan="6" style="padding:12px;color:#9AA0A6;font-style:italic;">No pallets</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      ${d.notes?`<div class="pr-section"><h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Notes</h3><div style="font-size:13px;color:#202124;white-space:pre-wrap;padding:12px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E8EAED;">${d.notes}</div></div>`:''}
+    </div>`;
+
+  document.getElementById('print-report').innerHTML=reportHTML;
+  window.print();
+}
+
+// ITEM LIBRARY
+function getLibItems(){return db.itemLibrary||[];}
+function saveLibItems(items){db.itemLibrary=items;save();}
+function openItemLibrary(){
+  renderLibList();
+  document.getElementById('lib-new-name').value='';
+  openModal('m-item-library');
+  setTimeout(()=>document.getElementById('lib-new-name').focus(),200);
+}
+function renderLibList(){
+  const items=getLibItems();
+  const el=document.getElementById('lib-list');
+  if(!items.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No items yet. Add your first item below.</div>';
+    return;
+  }
+  el.innerHTML='<div class="card" style="margin:0;">'
+    +items.map((item,i)=>`<div class="row-item" style="align-items:center;">
+      <div class="row-main" style="font-size:14px;font-weight:500;">${item.name}</div>
+      <button onclick="removeLibItem(${i})" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+    </div>`).join('')
+    +'</div>';
+}
+function addLibItem(){
+  const name=document.getElementById('lib-new-name').value.trim();
+  if(!name)return;
+  const items=getLibItems();
+  if(items.find(i=>i.name.toLowerCase()===name.toLowerCase()))return;
+  items.push({name});
+  items.sort((a,b)=>a.name.localeCompare(b.name));
+  saveLibItems(items);
+  document.getElementById('lib-new-name').value='';
+  renderLibList();
+}
+function removeLibItem(idx){
+  const items=getLibItems();
+  items.splice(idx,1);
+  saveLibItems(items);
+  renderLibList();
+}
+function populatePresetDropdown(){
+  const sel=document.getElementById('ap-preset');
+  const items=[...getLibItems()].sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">— choose an item —</option>'
+    +items.map(i=>`<option value="${i.name}">${i.name}</option>`).join('');
+}
+function applyPreset(){
+  const val=document.getElementById('ap-preset').value;
+  if(val)document.getElementById('ap-desc').value=val;
+}
+
+// MODALS
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+
+load();
+</script>
+</body>
+</html>
