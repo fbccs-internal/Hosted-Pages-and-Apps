@@ -105,6 +105,15 @@
       font-size: 0.8rem;
       color: #991b1b;
     }
+    .warn {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #92400e;
+    }
   </style>
 </head>
 <body>
@@ -113,6 +122,7 @@
     <h1>Grant sites</h1>
     <p class="sub">Toggle company, program, and city to show or hide markers.</p>
     <div id="error" class="err" hidden></div>
+    <div id="warn" class="warn" hidden></div>
     <div id="filters-root"></div>
     <div class="legend">
       <span><i class="dot marathon" aria-hidden="true"></i> Marathon</span>
@@ -125,6 +135,25 @@
   <script>
 (function () {
   const CSV_URL = 'sites_geocoded_fulldata.csv';
+  /** Query param: append=v1.<base64url(gzip(utf8(JSON array)))> — unpacker is schema-agnostic; v1 = gzip JSON array only. */
+
+  function enrichRowWithGeo(row) {
+    if (!row || typeof row !== 'object') return null;
+    const lat = parseFloat(row.lat);
+    const lon = parseFloat(row.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return Object.assign({}, row, { _lat: lat, _lon: lon });
+  }
+
+  function rowsWithGeoFromArray(decoded) {
+    if (!Array.isArray(decoded)) return [];
+    const out = [];
+    for (let i = 0; i < decoded.length; i++) {
+      const enriched = enrichRowWithGeo(decoded[i]);
+      if (enriched) out.push(enriched);
+    }
+    return out;
+  }
 
   function parseCSV(text) {
     const lines = text.trim().split(/\r?\n/).filter(Boolean);
@@ -138,14 +167,51 @@
       headers.forEach((key, j) => {
         row[key] = (parts[j] != null ? String(parts[j]).trim() : '');
       });
-      const lat = parseFloat(row.lat);
-      const lon = parseFloat(row.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-      row._lat = lat;
-      row._lon = lon;
-      rows.push(row);
+      const enriched = enrichRowWithGeo(row);
+      if (enriched) rows.push(enriched);
     }
     return rows;
+  }
+
+  function base64UrlToUint8Array(s) {
+    let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad);
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function gunzipToUtf8(bytes) {
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error('Gzip decode needs DecompressionStream (current browser).');
+    }
+    const ds = new DecompressionStream('gzip');
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    const buf = await new Response(stream).arrayBuffer();
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  }
+
+  /**
+   * Agnostic unpack: version prefix + payload only. Returns parsed JSON (caller validates shape).
+   * v1: gunzip + UTF-8 JSON parse.
+   */
+  async function unpackVersionedPayload(encoded) {
+    const dot = encoded.indexOf('.');
+    if (dot < 1) throw new Error('Expected version prefix, e.g. v1.<payload>');
+    const version = encoded.slice(0, dot);
+    const b64 = encoded.slice(dot + 1);
+    if (!b64) throw new Error('Empty payload after version.');
+    if (version !== 'v1') throw new Error('Unsupported version: ' + version);
+    const bytes = base64UrlToUint8Array(b64);
+    const text = await gunzipToUtf8(bytes);
+    return JSON.parse(text);
+  }
+
+  async function decodeAppendParam(encoded) {
+    const json = await unpackVersionedPayload(encoded);
+    return rowsWithGeoFromArray(json);
   }
 
   function uniqSorted(arr) {
@@ -366,28 +432,60 @@
     el.textContent = msg;
   }
 
-  fetch(CSV_URL)
-    .then((r) => {
-      if (!r.ok) throw new Error('Could not load CSV (' + r.status + '). Serve this folder over HTTP so the CSV can be fetched.');
-      return r.text();
-    })
-    .then(parseCSV)
-    .then((rows) => {
-      if (!rows.length) {
-        showError('No rows with valid coordinates found in the CSV.');
-        return;
+  function showWarning(msg) {
+    const el = document.getElementById('warn');
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function fallbackMap() {
+    const m = L.map('map').setView([37.99, -122.15], 10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OSM &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(m);
+  }
+
+  (async function load() {
+    let csvRows = [];
+    try {
+      const r = await fetch(CSV_URL);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      csvRows = parseCSV(await r.text());
+    } catch (e) {
+      console.warn('CSV load:', e);
+    }
+
+    let appendRows = [];
+    let appendErr = null;
+    const appendRaw = new URLSearchParams(window.location.search).get('append');
+    if (appendRaw && appendRaw.trim()) {
+      try {
+        appendRows = await decodeAppendParam(appendRaw.trim());
+      } catch (e) {
+        appendErr = e.message || String(e);
       }
-      initMap(rows);
-    })
-    .catch((e) => {
-      showError(e.message || String(e));
-      const m = L.map('map').setView([37.99, -122.15], 10);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OSM &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19,
-      }).addTo(m);
-    });
+    }
+
+    const merged = csvRows.concat(appendRows);
+    if (!merged.length) {
+      showError(
+        appendErr
+          ? 'No rows with coordinates. CSV empty or unavailable; append failed: ' + appendErr
+          : 'No sites to show. Serve CSV over HTTP, or use ?append=v1.<gzip+base64url(JSON array)>; objects need numeric lat & lon.'
+      );
+      fallbackMap();
+      return;
+    }
+    if (appendErr) {
+      showWarning('append= was present but invalid (using CSV only): ' + appendErr);
+    }
+    initMap(merged);
+  })().catch((e) => {
+    showError(e.message || String(e));
+    fallbackMap();
+  });
 })();
   </script>
 </body>
