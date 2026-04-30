@@ -437,6 +437,7 @@ var crtSyncTimer = null;
 var crtHydratePromise = null;
 
 var templateCache = {}; // version string → Uint8Array, lives for the session
+var PDF_B64 = null; // FDU 113 template (lazy); remains embedded in HTML
 
 // ── GIT SYNC + STORAGE (CRT/data.json metadata only) ─────────────────────────
 function setCRTSyncState(state) {

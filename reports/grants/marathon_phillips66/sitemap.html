@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grant sites map — Marathon / Phillips 66</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --panel-bg: rgba(255, 255, 255, 0.96);
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--text); }
+    #map { height: 100%; width: 100%; }
+    .leaflet-div-icon.site-shape-marker {
+      background: transparent !important;
+      border: none !important;
+    }
+    .panel {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 1000;
+      width: min(320px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+      background: var(--panel-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
+      padding: 14px 16px;
+    }
+    .panel h1 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .panel .sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .filter-block { margin-bottom: 14px; }
+    .filter-block:last-child { margin-bottom: 0; }
+    .filter-block h2 {
+      margin: 0 0 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .filter-actions button {
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .filter-actions button:hover { background: #f1f5f9; }
+    .toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-right: 4px;
+    }
+    .toggle-list label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 2px 0;
+    }
+    .toggle-list input { accent-color: var(--accent); }
+    .legend {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+    .legend .prog-line { display: block; margin-top: 8px; font-size: 0.7rem; line-height: 1.45; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot.marathon { background: #2563eb; }
+    .dot.phillips { background: #dc2626; }
+    .err {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #991b1b;
+    }
+    .warn {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #92400e;
+    }
+  </style>
+</head>
+<body>
+  <div id="map" role="application" aria-label="Site locations map"></div>
+  <aside class="panel" aria-label="Filters">
+    <h1>Grant sites</h1>
+    <p class="sub">Toggle company, program, and city to show or hide markers.</p>
+    <div id="error" class="err" hidden></div>
+    <div id="warn" class="warn" hidden></div>
+    <div id="filters-root"></div>
+    <div class="legend">
+      <span><i class="dot marathon" aria-hidden="true"></i> Marathon</span>
+      <span><i class="dot phillips" aria-hidden="true"></i> Phillips 66</span>
+      <p class="prog-line">Program: <strong>CPP</strong> circle, white edge · <strong>MPD</strong> △ orange · <strong>SCH</strong> □ green · <strong>KNOW</strong> ⬟ dark green · <strong>F2K</strong> hex yellow-green · <strong>SFP</strong> ◇ medium grey · other: circle, gray edge</p>
+    </div>
+  </aside>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+(function () {
+  const CSV_URL = 'sites_geocoded_fulldata.csv';
+  /** Query param: append=v1.<base64url(gzip(utf8(JSON array)))> — unpacker is schema-agnostic; v1 = gzip JSON array only. */
+
+  function enrichRowWithGeo(row) {
+    if (!row || typeof row !== 'object') return null;
+    const lat = parseFloat(row.lat);
+    const lon = parseFloat(row.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return Object.assign({}, row, { _lat: lat, _lon: lon });
+  }
+
+  function rowsWithGeoFromArray(decoded) {
+    if (!Array.isArray(decoded)) return [];
+    const out = [];
+    for (let i = 0; i < decoded.length; i++) {
+      const enriched = enrichRowWithGeo(decoded[i]);
+      if (enriched) out.push(enriched);
+    }
+    return out;
+  }
+
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map((h) => h.trim());
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].split(',');
+      if (parts.length < headers.length) continue;
+      const row = {};
+      headers.forEach((key, j) => {
+        row[key] = (parts[j] != null ? String(parts[j]).trim() : '');
+      });
+      const enriched = enrichRowWithGeo(row);
+      if (enriched) rows.push(enriched);
+    }
+    return rows;
+  }
+
+  function base64UrlToUint8Array(s) {
+    let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad);
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  async function gunzipToUtf8(bytes) {
+    if (typeof DecompressionStream === 'undefined') {
+      throw new Error('Gzip decode needs DecompressionStream (current browser).');
+    }
+    const ds = new DecompressionStream('gzip');
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    const buf = await new Response(stream).arrayBuffer();
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  }
+
+  /**
+   * Agnostic unpack: version prefix + payload only. Returns parsed JSON (caller validates shape).
+   * v1: gunzip + UTF-8 JSON parse.
+   */
+  async function unpackVersionedPayload(encoded) {
+    const dot = encoded.indexOf('.');
+    if (dot < 1) throw new Error('Expected version prefix, e.g. v1.<payload>');
+    const version = encoded.slice(0, dot);
+    const b64 = encoded.slice(dot + 1);
+    if (!b64) throw new Error('Empty payload after version.');
+    if (version !== 'v1') throw new Error('Unsupported version: ' + version);
+    const bytes = base64UrlToUint8Array(b64);
+    const text = await gunzipToUtf8(bytes);
+    return JSON.parse(text);
+  }
+
+  async function decodeAppendParam(encoded) {
+    const json = await unpackVersionedPayload(encoded);
+    return rowsWithGeoFromArray(json);
+  }
+
+  function uniqSorted(arr) {
+    return [...new Set(arr)].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  const companyColor = (company) => {
+    const c = (company || '').toLowerCase();
+    if (c.includes('phillips')) return '#dc2626';
+    if (c.includes('marathon')) return '#2563eb';
+    return '#475569';
+  };
+
+  const PROGRAM_OUTLINE = {
+    MPD: '#f97316',
+    SCH: '#22c55e',
+    KNOW: '#14532d',
+    F2K: '#84cc16',
+    SFP: '#6b7280',
+  };
+
+  const SHAPE_ICON_SIZE = 28;
+  const SHAPE_ICON_ANCHOR = SHAPE_ICON_SIZE / 2;
+
+  function polygonPoints(sides, cx, cy, r) {
+    const pts = [];
+    for (let i = 0; i < sides; i++) {
+      const a = (-90 + (360 * i) / sides) * Math.PI / 180;
+      pts.push(`${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`);
+    }
+    return pts.join(' ');
+  }
+
+  function shapeSvgMarkup(fill, program) {
+    const p = (program || '').toUpperCase();
+    const sw = 2.5;
+    const r = 9;
+    if (p === 'MPD') {
+      const stroke = PROGRAM_OUTLINE.MPD;
+      return `<polygon points="${polygonPoints(3, 14, 14, r)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    }
+    if (p === 'SCH') {
+      const stroke = PROGRAM_OUTLINE.SCH;
+      return `<rect x="5.5" y="5.5" width="17" height="17" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+    }
+    if (p === 'KNOW') {
+      const stroke = PROGRAM_OUTLINE.KNOW;
+      return `<polygon points="${polygonPoints(5, 14, 14, r)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    }
+    if (p === 'F2K') {
+      const stroke = PROGRAM_OUTLINE.F2K;
+      return `<polygon points="${polygonPoints(6, 14, 14, r)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    }
+    if (p === 'SFP') {
+      const stroke = PROGRAM_OUTLINE.SFP;
+      return `<polygon points="14,5 23,14 14,23 5,14" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+    }
+    return `<circle cx="14" cy="14" r="${r}" fill="${fill}" stroke="#94a3b8" stroke-width="${sw}"/>`;
+  }
+
+  function createSiteMarker(row) {
+    const latlng = [row._lat, row._lon];
+    const fill = companyColor(row.Company);
+    const program = (row.Program || '').toUpperCase();
+
+    if (program === 'CPP') {
+      return L.circleMarker(latlng, {
+        radius: 9,
+        fillColor: fill,
+        color: '#ffffff',
+        weight: 2.5,
+        opacity: 1,
+        fillOpacity: 0.9,
+      });
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SHAPE_ICON_SIZE}" height="${SHAPE_ICON_SIZE}" viewBox="0 0 28 28" aria-hidden="true">${shapeSvgMarkup(fill, row.Program)}</svg>`;
+    return L.marker(latlng, {
+      icon: L.divIcon({
+        className: 'site-shape-marker',
+        html: svg,
+        iconSize: [SHAPE_ICON_SIZE, SHAPE_ICON_SIZE],
+        iconAnchor: [SHAPE_ICON_ANCHOR, SHAPE_ICON_ANCHOR],
+      }),
+    });
+  }
+
+  let map;
+  let markersLayer;
+  let allRows = [];
+  const markerByIndex = [];
+
+  const state = {
+    company: {},
+    program: {},
+    city: {},
+  };
+
+  function rowVisible(row) {
+    return !!state.company[row.Company] && !!state.program[row.Program] && !!state.city[row.City];
+  }
+
+  function applyFilters() {
+    markerByIndex.forEach((m, i) => {
+      const ok = rowVisible(allRows[i]);
+      if (ok) {
+        if (!markersLayer.hasLayer(m)) m.addTo(markersLayer);
+      } else if (markersLayer.hasLayer(m)) {
+        markersLayer.removeLayer(m);
+      }
+    });
+  }
+
+  function buildFilterSection(title, key, values, onChange) {
+    const wrap = document.createElement('div');
+    wrap.className = 'filter-block';
+    const h = document.createElement('h2');
+    h.textContent = title;
+    wrap.appendChild(h);
+
+    const actions = document.createElement('div');
+    actions.className = 'filter-actions';
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.textContent = 'All';
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button';
+    noneBtn.textContent = 'None';
+    actions.appendChild(allBtn);
+    actions.appendChild(noneBtn);
+    wrap.appendChild(actions);
+
+    const list = document.createElement('div');
+    list.className = 'toggle-list';
+
+    values.forEach((v) => {
+      state[key][v] = true;
+      const id = `f-${key}-${encodeURIComponent(v).replace(/%/g, '_')}`;
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = true;
+      input.id = id;
+      input.addEventListener('change', () => {
+        state[key][v] = input.checked;
+        onChange();
+      });
+      label.appendChild(input);
+      const span = document.createElement('span');
+      span.textContent = v;
+      label.appendChild(span);
+      list.appendChild(label);
+    });
+
+    allBtn.addEventListener('click', () => {
+      values.forEach((v) => { state[key][v] = true; });
+      list.querySelectorAll('input[type=checkbox]').forEach((inp) => { inp.checked = true; });
+      onChange();
+    });
+    noneBtn.addEventListener('click', () => {
+      values.forEach((v) => { state[key][v] = false; });
+      list.querySelectorAll('input[type=checkbox]').forEach((inp) => { inp.checked = false; });
+      onChange();
+    });
+
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function initMap(rows) {
+    allRows = rows;
+    map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(map);
+
+    markersLayer = L.layerGroup().addTo(map);
+
+    rows.forEach((row, i) => {
+      const m = createSiteMarker(row);
+      const addr = [row.Address, row.City, row.ZIP].filter(Boolean).join(', ');
+      m.bindPopup(
+        `<strong>${escapeHtml(row.Name || '')}</strong><br/>` +
+        `<span style="color:#64748b;font-size:12px;">${escapeHtml(row.NAVID || '')}</span><br/><br/>` +
+        `${escapeHtml(row.Program || '')} · ${escapeHtml(row.Company || '')}<br/>` +
+        `${escapeHtml(addr)}`
+      );
+      markerByIndex[i] = m;
+      m.addTo(markersLayer);
+    });
+
+    const companies = uniqSorted(rows.map((r) => r.Company));
+    const programs = uniqSorted(rows.map((r) => r.Program));
+    const cities = uniqSorted(rows.map((r) => r.City));
+
+    const root = document.getElementById('filters-root');
+    root.appendChild(buildFilterSection('Company', 'company', companies, applyFilters));
+    root.appendChild(buildFilterSection('Program', 'program', programs, applyFilters));
+    root.appendChild(buildFilterSection('City', 'city', cities, applyFilters));
+
+    const latlngs = rows.map((r) => [r._lat, r._lon]);
+    map.fitBounds(L.latLngBounds(latlngs).pad(0.12), { maxZoom: 12 });
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error');
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function showWarning(msg) {
+    const el = document.getElementById('warn');
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  function fallbackMap() {
+    const m = L.map('map').setView([37.99, -122.15], 10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OSM &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(m);
+  }
+
+  (async function load() {
+    let csvRows = [];
+    try {
+      const r = await fetch(CSV_URL);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      csvRows = parseCSV(await r.text());
+    } catch (e) {
+      console.warn('CSV load:', e);
+    }
+
+    let appendRows = [];
+    let appendErr = null;
+    const appendRaw = new URLSearchParams(window.location.search).get('append');
+    if (appendRaw && appendRaw.trim()) {
+      try {
+        appendRows = await decodeAppendParam(appendRaw.trim());
+      } catch (e) {
+        appendErr = e.message || String(e);
+      }
+    }
+
+    const merged = csvRows.concat(appendRows);
+    if (!merged.length) {
+      showError(
+        appendErr
+          ? 'No rows with coordinates. CSV empty or unavailable; append failed: ' + appendErr
+          : 'No sites to show. Serve CSV over HTTP, or use ?append=v1.<gzip+base64url(JSON array)>; objects need numeric lat & lon.'
+      );
+      fallbackMap();
+      return;
+    }
+    if (appendErr) {
+      showWarning('append= was present but invalid (using CSV only): ' + appendErr);
+    }
+    initMap(merged);
+  })().catch((e) => {
+    showError(e.message || String(e));
+    fallbackMap();
+  });
+})();
+  </script>
+</body>
+</html>
