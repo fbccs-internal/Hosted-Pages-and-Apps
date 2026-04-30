@@ -851,9 +851,22 @@ function snapshotPdfFieldVals(vals) {
   return o;
 }
 
+function recordHasStoredTemplateVersion(r) {
+  if (!r || r.templateVersion == null) return false;
+  return String(r.templateVersion).trim() !== '';
+}
+
+function resolveRecordTemplateVersion(r) {
+  if (recordHasStoredTemplateVersion(r)) return String(r.templateVersion).trim();
+  return crtMeta.currentTemplateVersion || 'v1';
+}
+
 /** Fill the version-matched blank template (CRT/templates/{version}.pdf) with vals; returns bytes for download only (not persisted). */
 async function generateFduPdfBytes(vals, templateVersion) {
-  var bytes = await fetchTemplate(templateVersion || crtMeta.currentTemplateVersion);
+  var ver = (templateVersion != null && String(templateVersion).trim() !== '')
+    ? String(templateVersion).trim()
+    : (crtMeta.currentTemplateVersion || 'v1');
+  var bytes = await fetchTemplate(ver);
   var pdfDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption: true});
   var form = pdfDoc.getForm();
 
@@ -1016,6 +1029,14 @@ async function loadAdminDash() {
       var lvlColor = lvl === 'Level 1' ? '#7a4f00' : '#0F6E56';
       var lvlBg    = lvl === 'Level 1' ? '#fef3e2' : '#eaf6f1';
       var hasPdfFields = r.pdfFields && typeof r.pdfFields === 'object';
+      var hasTmpl = recordHasStoredTemplateVersion(r);
+      var tmplDisp = hasTmpl ? String(r.templateVersion).trim() : (crtMeta.currentTemplateVersion || 'v1');
+      var tmplTitle = hasTmpl
+        ? 'Saved template version: ' + tmplDisp
+        : 'No version on record — PDF uses current default: ' + tmplDisp;
+      var pdfBtnTitle = !hasPdfFields
+        ? 'No pdfFields — cannot fill template (legacy row)'
+        : (!hasTmpl ? 'Uses current default template (record was not versioned)' : 'Generate FDU PDF from stored fields');
       return '<tr>'+
         '<td>'+(i+1)+'</td>'+
         '<td><strong>'+escHtml(r.name)+'</strong></td>'+
@@ -1024,8 +1045,8 @@ async function loadAdminDash() {
         '<td>'+escHtml(r.trainDate||'—')+'</td>'+
         '<td>'+escHtml(r.nextDate||'—')+'</td>'+
         '<td>'+escHtml(r.completedAt)+'</td>'+
-        '<td><span style="font-size:12px;color:#888;" title="Template: '+(r.templateVersion||'v1')+'">'+escHtml(r.templateVersion||'v1')+'</span></td>'+
-        '<td><button type="button" class="download-btn"'+(hasPdfFields?'':' disabled style="opacity:.45;cursor:not-allowed" title="No pdfFields — cannot fill template (legacy row)"')+' onclick="adminGeneratePdf('+JSON.stringify(r.id)+')">&#128196; PDF</button></td>'+
+        '<td><span style="font-size:12px;color:#888;" title="'+escHtml(tmplTitle)+'">'+escHtml(tmplDisp)+(hasTmpl?'':' <span style="color:#b45309;font-weight:600">(default)</span>')+'</span></td>'+
+        '<td><button type="button" class="download-btn"'+(hasPdfFields?'':' disabled style="opacity:.45;cursor:not-allowed"')+' title="'+escHtml(pdfBtnTitle)+'" onclick="adminGeneratePdf('+JSON.stringify(r.id)+')">&#128196; PDF</button></td>'+
         '</tr>';
     }).join('');
   }
@@ -1086,6 +1107,7 @@ function saveTrainingTimers() {
 }
 
 async function adminGeneratePdf(recordId) {
+  var usedTemplateFallback = false;
   try {
     var records = await loadRecords();
     var r = records.find(function(rec) { return rec.id === recordId; });
@@ -1098,7 +1120,9 @@ async function adminGeneratePdf(recordId) {
       alert('This completion has no pdfFields payload (older saves only listed name/dates). New completions store the form text so the FDU 113 can be filled into the matching template from storage.');
       return;
     }
-    var pdfBytes = await generateFduPdfBytes(vals, r.templateVersion || crtMeta.currentTemplateVersion);
+    usedTemplateFallback = !recordHasStoredTemplateVersion(r);
+    var version = resolveRecordTemplateVersion(r);
+    var pdfBytes = await generateFduPdfBytes(vals, version);
     var blob = new Blob([pdfBytes], {type:'application/pdf'});
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -1112,7 +1136,12 @@ async function adminGeneratePdf(recordId) {
     URL.revokeObjectURL(url);
   } catch(e) {
     console.error(e);
-    alert('PDF error: '+(e.message||String(e)));
+    var detail = e && e.message ? e.message : String(e);
+    var msg = 'PDF generation failed.\n\n' + detail;
+    if (usedTemplateFallback) {
+      msg += '\n\nThis completion had no saved template version, so the current default template was used. If something still fails or the PDF looks wrong, the blank PDF layout may not match the fields from when this was filled — try changing the default template in Admin (if an older version fits) or treat this as a template mismatch.';
+    }
+    alert(msg);
   }
 }
 
