@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Civil Rights Annual Training – CSFP &amp; TEFAP</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a;font-size:15px;line-height:1.6}
+.app{max-width:900px;margin:0 auto;padding:1.25rem}
+
+.header{background:#1a4f8a;color:white;padding:1.25rem 1.5rem;border-radius:10px;margin-bottom:1.5rem}
+.header-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.header h1{font-size:18px;font-weight:600;color:white;margin-bottom:4px}
+.header p{font-size:13px;color:rgba(255,255,255,.82)}
+.usda-badge{background:rgba(255,255,255,.22);border-radius:6px;padding:5px 12px;font-size:12px;color:white;white-space:nowrap;flex-shrink:0;margin-top:4px}
+.prog-wrap{background:rgba(255,255,255,.25);border-radius:99px;height:7px;margin-top:14px}
+.prog-fill{background:#7ec8e3;border-radius:99px;height:7px;transition:width .35s ease}
+.prog-label{font-size:12px;color:rgba(255,255,255,.78);margin-top:5px;text-align:right}
+.header-sync{font-size:12px;color:rgba(255,255,255,.7);margin-top:8px;text-align:right;min-height:18px;font-weight:500;transition:color .25s ease}
+
+.nav-tabs{display:flex;gap:8px;margin-bottom:1.5rem;flex-wrap:wrap}
+.tab{padding:8px 18px;border-radius:8px;border:1px solid #c5cdd8;font-size:13px;cursor:pointer;background:#fff;color:#555;transition:all .15s;font-family:Arial,sans-serif}
+.tab:hover:not(.locked){background:#eef2f7}
+.tab.active{background:#1a4f8a;color:white;border-color:#1a4f8a}
+.tab.locked{opacity:.42;cursor:not-allowed}
+
+.section{display:none}.section.active{display:block}
+
+/* SLIDES */
+.slide-card{background:#fff;border:1px solid #d8dde6;border-radius:10px;padding:1.75rem;margin-bottom:1rem}
+.slide-num{font-size:12px;color:#777;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.slide-title{font-size:22px;font-weight:600;color:#1a4f8a;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #1a90d4}
+.slide-body{font-size:15px;line-height:1.75;font-weight:500;min-height:360px;max-height:360px;overflow-y:auto;padding-right:4px}
+.slide-body-tall{font-size:15px;line-height:1.75;font-weight:500;min-height:360px;max-height:600px;overflow-y:auto;padding-right:4px}
+.slide-body p{margin-bottom:.75rem}
+.slide-body ul,.slide-body ol{padding-left:1.4rem;margin-bottom:.75rem}
+.slide-body li{margin-bottom:.35rem}
+.scenario-box{background:#f5f7fa;border-left:3px solid #1a90d4;border-radius:0 8px 8px 0;padding:1rem 1.25rem;margin:.85rem 0}
+.scenario-box .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#777;margin-bottom:5px}
+.nds-box{background:#f0f4f9;border:1px solid #b5d4f4;border-radius:8px;padding:1.1rem 1.25rem;font-size:13px;line-height:1.65;margin:.75rem 0}
+.slide-nav{display:flex;justify-content:space-between;align-items:center;margin-top:.5rem}
+.slide-counter{font-size:13px;color:#777}
+
+/* BUTTONS */
+.btn{padding:9px 22px;border-radius:8px;border:1px solid #c5cdd8;font-size:14px;cursor:pointer;background:#fff;color:#1a1a1a;transition:all .15s;font-family:Arial,sans-serif}
+.btn:hover{background:#eef2f7}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:#1a4f8a;color:white;border-color:#1a4f8a}
+.btn-next-loading{position:relative;overflow:hidden;cursor:not-allowed !important;opacity:1 !important;color:rgba(255,255,255,0.7) !important;background:#1a4f8a !important;}
+.btn-next-loading::before{content:'';position:absolute;left:0;top:0;height:100%;width:0%;background:rgba(255,255,255,0.25);transition:none;}
+.btn-next-loading.filling::before{transition:width var(--fill-duration) linear;width:100%;}
+.scroll-hint{position:absolute;bottom:0;left:0;right:0;height:48px;background:linear-gradient(to bottom,rgba(26,79,138,0),rgba(26,79,138,0.12));border-radius:0 0 10px 10px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;pointer-events:none;font-size:12px;color:#1a4f8a;font-weight:600;letter-spacing:.02em;opacity:0;transition:opacity .4s;}
+.scroll-hint.visible{opacity:1;}
+.slide-card{position:relative;}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:rgba(26,26,26,0.92);color:#fff;padding:11px 24px;border-radius:99px;font-size:13px;font-weight:500;z-index:9998;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.btn-primary:hover:not(:disabled){background:#15407a}
+.btn-success{background:#0F6E56;color:white;border-color:#0F6E56}
+.btn-success:hover:not(:disabled){background:#0a5a45}
+.btn-orange{background:#c45c00;color:white;border-color:#c45c00;font-size:15px;padding:11px 26px}
+.btn-orange:hover:not(:disabled){background:#a84f00}
+.btn-red{background:#8b1a1a;color:white;border-color:#8b1a1a}
+.btn-red:hover:not(:disabled){background:#6e1414}
+
+/* FORMS */
+.alert{padding:.8rem 1rem;border-radius:8px;font-size:13px;margin-bottom:1rem;font-weight:400}
+.alert-info{background:#e8f0fb;color:#1a4f8a;border:1px solid #b5d4f4}
+.alert-success{background:#eaf6f1;color:#0F6E56;border:1px solid #9fdbc8}
+
+.form-panel{background:#fff;border:1px solid #d8dde6;border-radius:10px;padding:1.5rem;margin-bottom:1rem}
+.form-panel h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#1a4f8a;margin-bottom:.85rem;padding-bottom:6px;border-bottom:2px solid #1a4f8a}
+
+.hi{background:#fff9c4;border:1px solid #e0c040;border-radius:4px;padding:4px 8px;font-size:13px;font-family:Arial,sans-serif;color:#1a1a1a;transition:background .15s}
+.hi:focus{outline:none;background:#fff5a0;border-color:#c09000;box-shadow:0 0 0 2px rgba(192,144,0,.2)}
+.hi-wide{width:100%}
+.hi-sm{width:80px;text-align:center}
+
+.field-row{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:1rem}
+.date-pair{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.field-group{display:flex;flex-direction:column;gap:4px}
+.field-group label{font-size:12px;color:#555;font-weight:600}
+
+.checklist-item{background:#fff;border:1px solid #d8dde6;border-radius:8px;padding:.85rem 1.1rem;margin-bottom:8px;transition:border-left .2s}
+.checklist-item.initialed{border-left:3px solid #0F6E56}
+.item-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.item-body{font-size:13px;color:#444;line-height:1.55;margin-bottom:8px;font-weight:400}
+.initials-row{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.initials-row label{font-size:12px;color:#555;font-weight:600}
+
+.cert-box{border:1px solid #b0b8c4;border-radius:8px;margin-bottom:1rem;overflow:hidden}
+.cert-box-title{background:#eef2f7;font-size:13px;font-weight:700;text-align:center;padding:9px;border-bottom:1px solid #c5cdd8;color:#1a4f8a;letter-spacing:.04em}
+.cert-box-body{padding:1rem 1.1rem}
+.cert-stmt{font-size:13px;line-height:1.65;margin-bottom:.85rem;font-weight:400}
+.cert-note{font-size:12px;color:#666;font-style:italic;margin-bottom:.75rem;font-weight:400}
+.cert-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.85rem}
+.cert-grid-sig{display:grid;grid-template-columns:2fr 1fr;gap:1rem;margin-bottom:.5rem}
+.display-blank{border-bottom:1px solid #888;display:inline-block;min-width:160px;vertical-align:bottom}
+
+.btn-row{display:flex;gap:10px;margin-top:1.25rem;flex-wrap:wrap;align-items:center}
+
+/* ADMIN */
+.admin-login{max-width:380px;margin:2rem auto;background:#fff;border:1px solid #d8dde6;border-radius:10px;padding:2rem;text-align:center}
+.admin-login h2{font-size:18px;font-weight:600;color:#1a4f8a;margin-bottom:1rem}
+.admin-login input{width:100%;padding:10px 12px;font-size:14px;border:1px solid #c5cdd8;border-radius:8px;margin-bottom:1rem;font-family:Arial,sans-serif}
+.admin-login input:focus{outline:none;border-color:#1a4f8a;box-shadow:0 0 0 2px rgba(26,79,138,.15)}
+
+.admin-table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#1a4f8a;color:white;padding:9px 12px;text-align:left;font-weight:600;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #e8edf3;vertical-align:middle}
+tr:hover td{background:#f5f8fc}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.tag-done{background:#eaf6f1;color:#0F6E56}
+.download-btn{padding:4px 12px;font-size:12px;border-radius:6px;border:1px solid #1a4f8a;background:#fff;color:#1a4f8a;cursor:pointer;font-family:Arial,sans-serif}
+.download-btn:hover{background:#e8f0fb}
+.empty-state{text-align:center;padding:3rem;color:#777;font-size:14px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <h1>Civil Rights Annual Training</h1>
+        <p>TEFAP &amp; CSFP &nbsp;·&nbsp; Updated 06/2022</p>
+      </div>
+      <div class="usda-badge">USDA Required</div>
+    </div>
+    <div class="prog-wrap"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+    <div class="prog-label" id="progLabel">0% complete</div>
+    <div class="header-sync" id="crtSyncStat" aria-live="polite"></div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="tab active" onclick="showSection('welcome',this)" id="tab-welcome">&#127968; Welcome</button>
+    <button class="tab locked" onclick="showSection('training',this)" id="tab-training">&#128214; Training</button>
+    <button class="tab locked" onclick="showSection('checklist',this)" id="tab-checklist">&#9989; Checklist &amp; Certificate</button>
+    <button class="tab" onclick="showSection('admin',this)" id="tab-admin" style="margin-left:auto;background:#f8f0e8;border-color:#c8a060;color:#7a4f00;">&#128274; Admin</button>
+  </div>
+
+  <!-- WELCOME -->
+  <div class="section active" id="section-welcome">
+    <div style="max-width:620px;margin:.5rem auto;text-align:center;">
+      <div style="font-size:36px;margin-bottom:.4rem;">&#9878;</div>
+      <h2 style="font-size:20px;font-weight:700;color:#1a4f8a;margin-bottom:.4rem;">Welcome to the Civil Rights Annual Training</h2>
+      <p style="font-size:13px;color:#555;margin-bottom:.9rem;line-height:1.6;">This mandatory training covers civil rights requirements for USDA food programs TEFAP &amp; CSFP. Please answer the question below to get started.</p>
+
+      <div style="background:#fff;border:1px solid #d8dde6;border-radius:12px;padding:1rem 1.25rem;text-align:left;">
+        <p style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:.3rem;">What is your role?</p>
+        <p style="font-size:12px;color:#666;margin-bottom:.85rem;">Your answer determines which training level is required for you.</p>
+
+        <label id="welcome-opt-yes" onclick="selectRole('yes')" style="display:flex;align-items:flex-start;gap:12px;padding:.7rem 1rem;border:2px solid #d8dde6;border-radius:10px;cursor:pointer;margin-bottom:.6rem;transition:all .15s;">
+          <div style="width:22px;height:22px;border-radius:50%;border:2px solid #c5cdd8;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;" id="radio-yes"></div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:2px;">Yes — I am in a management or lead role</div>
+            <div style="font-size:13px;color:#666;">I am program management staff at a provider agency (ERA or Local Agency), CDSS staff administering TEFAP or CSFP, or a lead program volunteer at a distribution site.</div>
+          </div>
+        </label>
+
+        <label id="welcome-opt-no" onclick="selectRole('no')" style="display:flex;align-items:flex-start;gap:12px;padding:.7rem 1rem;border:2px solid #d8dde6;border-radius:10px;cursor:pointer;transition:all .15s;">
+          <div style="width:22px;height:22px;border-radius:50%;border:2px solid #c5cdd8;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;" id="radio-no"></div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:2px;">No — I am a staff member or volunteer</div>
+            <div style="font-size:13px;color:#666;">I am a staff member or volunteer assigned to determine program eligibility or handle confidential information of beneficiaries.</div>
+          </div>
+        </label>
+      </div>
+
+      <div style="margin-top:.9rem;">
+        <button class="btn btn-primary" id="welcomeStartBtn" onclick="startTraining()" disabled style="font-size:15px;padding:11px 36px;opacity:.4;">Get Started &#8594;</button>
+        <div id="welcomeError" style="font-size:13px;color:#c00;margin-top:.5rem;display:none;">Please select your role to continue.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRAINING -->
+  <div class="section" id="section-training">
+    <div id="slideContainer"></div>
+    <div class="slide-nav">
+      <button class="btn" id="prevBtn" onclick="prevSlide()">&#8592; Previous</button>
+      <span class="slide-counter" id="slideCounter"></span>
+      <button class="btn btn-primary" id="nextBtn" onclick="nextSlide()">Next &#8594;</button>
+    </div>
+  </div>
+
+  <!-- CHECKLIST + CERTIFICATE -->
+  <div class="section" id="section-checklist">
+    <div class="alert alert-info">&#128310; <strong>Yellow fields</strong> require your input. Fill in all fields, initial each section, and sign both certification boxes. Then click <strong>Generate &amp; Save FDU 113 PDF</strong> — your completion record (without the PDF file) is synced for administrators, and your completed FDU downloads to this device.</div>
+
+    <div class="form-panel">
+      <h3>Employee / Volunteer Information</h3>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Employee or Volunteer Name (Last Name, First Name)</label>
+          <input type="text" id="empName" class="hi hi-wide" placeholder="Last Name, First Name" oninput="syncCertFields()">
+        </div>
+        <div class="date-pair">
+          <div class="field-group">
+            <label>Date of Training</label>
+            <input type="text" id="trainDate" class="hi hi-wide" placeholder="MM/DD/YYYY">
+          </div>
+          <div class="field-group">
+            <label>Date Next Training Due</label>
+            <input type="text" id="nextDate" class="hi hi-wide" placeholder="MM/DD/YYYY">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-panel">
+      <h3>Civil Rights Checklist — Initial Each Section</h3>
+      <p style="font-size:13px;color:#555;margin-bottom:1rem;font-weight:400;">After reading each section, enter your initials in the <span style="background:#fff9c4;border:1px solid #e0c040;padding:1px 6px;border-radius:3px;">yellow box</span> to confirm you have read and understood the material.</p>
+      <div id="checklistItems"></div>
+    </div>
+
+    <div class="form-panel">
+      <h3>Level 1 Training Certification</h3>
+      <div class="cert-box">
+        <div class="cert-box-title">LEVEL 1 TRAINING CERTIFICATION</div>
+        <div class="cert-box-body">
+          <p class="cert-stmt">I, <span class="display-blank" id="l1-name-d">&nbsp;</span> (<em>Print your First and Last Name</em>) have read and understood the content of this civil rights training. I agree to follow the civil rights instructions as listed above while working as staff or volunteering for <span class="display-blank" id="l1-agency-d">&nbsp;</span> (<em>Print Agency Name</em>). I understand that this checklist must be reviewed and completed annually.</p>
+          <div class="cert-grid">
+            <div class="field-group">
+              <label>Print First and Last Name</label>
+              <input type="text" id="l1-name" class="hi hi-wide" placeholder="Full name" oninput="syncCertFields()">
+            </div>
+            <div class="field-group">
+              <label>Print Agency Name</label>
+              <input type="text" id="l1-agency" class="hi hi-wide" placeholder="Agency name" oninput="syncCertFields()">
+            </div>
+          </div>
+          <div class="cert-grid-sig">
+            <div class="field-group">
+              <label>Signature (type full name as signature)</label>
+              <input type="text" id="l1-sig" class="hi hi-wide" placeholder="Type your full name">
+            </div>
+            <div class="field-group">
+              <label>Date</label>
+              <input type="text" id="l1-date" class="hi hi-wide" placeholder="MM/DD/YYYY">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-panel" id="level2-panel">
+      <h3>Level 2 Training Certification</h3>
+      <div class="cert-box">
+        <div class="cert-box-title">LEVEL 2 TRAINING CERTIFICATION</div>
+        <div class="cert-box-body">
+          <p class="cert-note">To be completed by TEFAP and CSFP staff at CDSS, program management staff at any provider (ERA or Local Agency), and lead program volunteers at any distribution site.</p>
+          <p class="cert-stmt">I, <span class="display-blank" id="l2-name-d">&nbsp;</span> (<em>Print your First and Last Name</em>) have viewed and understand the civil rights information contained in the FDU Civil Rights Presentation. I agree to follow the civil rights instructions as indicated in this checklist and in the FDU Civil Rights Presentation while working as staff or volunteering for <span class="display-blank" id="l2-agency-d">&nbsp;</span> (<em>Print Agency Name</em>). I understand that this checklist and the FDU Civil Rights Presentation must be reviewed and completed annually.</p>
+          <div class="cert-grid">
+            <div class="field-group">
+              <label>Print First and Last Name</label>
+              <input type="text" id="l2-name" class="hi hi-wide" placeholder="Full name" oninput="syncCertFields()">
+            </div>
+            <div class="field-group">
+              <label>Print Agency Name</label>
+              <input type="text" id="l2-agency" class="hi hi-wide" placeholder="Agency name" oninput="syncCertFields()">
+            </div>
+          </div>
+          <div class="cert-grid-sig">
+            <div class="field-group">
+              <label>Signature (type full name as signature)</label>
+              <input type="text" id="l2-sig" class="hi hi-wide" placeholder="Type your full name">
+            </div>
+            <div class="field-group">
+              <label>Date</label>
+              <input type="text" id="l2-date" class="hi hi-wide" placeholder="MM/DD/YYYY">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-panel" id="csfp-panel">
+      <h3>CSFP Requirement — Racial &amp; Ethnic Data Collection</h3>
+      <p class="item-body">Each local agency and/or each sub-site shall collect the number of participants receiving food packages by racial/ethnic category during the month of April each year, unless otherwise specified by CDSS. Self-identification or self-reporting of this information is the preferred method. The FNS-191 report must be submitted each year to CDSS.</p>
+      <div class="initials-row"><label>Initials:</label><input type="text" id="csfp-init" class="hi hi-sm" maxlength="5" placeholder="____"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-orange" onclick="generateAndSave()" id="genBtn">&#128196; Generate &amp; Save FDU 113 PDF</button>
+      <span id="genStatus" style="font-size:13px;"></span>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="section" id="section-admin">
+    <div id="adminLoginWrap">
+      <div class="admin-login">
+        <h2>&#128274; Administrator Login</h2>
+        <p style="font-size:13px;color:#666;margin-bottom:1.25rem;">Enter the admin password to view completed training records.</p>
+        <input type="password" id="adminPass" placeholder="Password" onkeydown="if(event.key==='Enter')adminLogin()">
+        <button class="btn btn-primary" style="width:100%" onclick="adminLogin()">Login</button>
+        <div id="loginError" style="color:#c00;font-size:13px;margin-top:.5rem;display:none">Incorrect password.</div>
+      </div>
+    </div>
+    <div id="adminDash" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+        <h2 style="font-size:18px;font-weight:600;color:#1a4f8a;">Completed Training Records</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <span id="recordCount" style="font-size:13px;color:#555;align-self:center;"></span>
+          <button class="btn btn-success" onclick="exportToCSV()" style="font-size:13px;padding:7px 14px;">&#128202; Export CSV</button>
+          <button class="btn btn-red" onclick="clearAllRecords()" style="font-size:13px;padding:7px 14px;">&#128465; Clear All Records</button>
+          <button class="btn" onclick="adminLogout()" style="font-size:13px;padding:7px 14px;">Logout</button>
+        </div>
+      </div>
+      <div class="form-panel admin-table-wrap">
+        <table id="adminTable">
+          <thead><tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Agency</th>
+            <th>Level</th>
+            <th>Training Date</th>
+            <th>Next Due</th>
+            <th>Completed</th>
+            <th>Download</th>
+          </tr></thead>
+          <tbody id="adminTbody"></tbody>
+        </table>
+        <div id="adminEmpty" class="empty-state" style="display:none">No completed training records yet.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+var slides = [
+  { title: "Welcome", num: "Slide 1", body: '<p>Welcome to the annual Civil Rights Training!</p><p>This is a mandatory training designed for providers and their staff administering USDA food programs.</p><p>Today\'s training will cover civil rights requirements set by USDA for both programs TEFAP &amp; CSFP.</p><p>The goal of this training is to guarantee services that are available to all beneficiaries in a non-discriminatory manner for any USDA food program.</p>' },
+  { title: "Required Training", num: "Slide 2", body: '<p>Providers are required to complete the civil rights training annually.</p><p>All staff and volunteers assigned to determine program eligibility or handle confidential information of beneficiaries must review and sign the Civil Rights checklist.</p><p>In addition, all staff at the state agency, program management staff at any provider and lead program volunteers at any distribution sites must review and complete the Civil Rights presentation.</p>' },
+  { title: "Common Terms", num: "Slide 3", body: '<ul><li><strong>USDA</strong> – United States Department of Agriculture</li><li><strong>TEFAP</strong> – The Emergency Food Assistance Program</li><li><strong>CSFP</strong> – Commodity Supplemental Food Program</li><li><strong>State Agency</strong> – The California Department of Social Services (CDSS), the agency designated to administer TEFAP &amp; CSFP at the state level.</li><li><strong>Providers</strong> – Any agency administering USDA food programs on behalf of the state agency.</li><li><strong>Beneficiaries</strong> – Any individual who wishes to apply, participate or receive benefits for any of the USDA food programs. It can be a client, an applicant, current beneficiary or returning.</li></ul>' },
+  { title: "Agenda Topics", num: "Slide 4", body: '<ul><li>Definitions of Civil Rights</li><li>Legal Authorities</li><li>Protected Classes</li><li>Public Notification</li><li>Nondiscrimination Statement</li><li>Language Access for Individuals with Limited English Proficiency (LEP)</li><li>Reasonable Accommodation Mandates</li><li>Faith Based Organizations Requirements</li><li>Procedures for Civil Rights Complaints</li><li>Customer Service and Conflict Resolution</li><li>Civil Rights Compliance Review</li><li>Racial &amp; Ethnic Data Collection (CSFP only)</li></ul>' },
+  { title: "Training Objectives", num: "Slide 5", body: '<p>At the completion of this training, you will be able to:</p><ul><li>Define all the protected classes</li><li>Prevent discrimination based on any of the protected classes at a distribution site</li><li>Understand civil rights mandated requirements</li><li>Identify the requirements for serving individuals with Limited English Proficiency (LEP)</li><li>Understand accommodations required for serving individuals with disabilities</li><li>Identify the requirements for data collection</li></ul>' },
+  { title: "Civil Rights Information", num: "Slide 6", body: '<p style="font-weight:600;color:#1a4f8a;">Why is this training required?</p><p>TEFAP and CSFP programs receive federal funding from USDA. Therefore, it is required to follow federal civil rights requirements.</p><p style="font-weight:600;color:#1a4f8a;margin-top:1rem;">What are providers responsible for regarding civil rights mandates?</p><p>Providers must create a system for responding to client complaints on the basis of perceived or actual discrimination.</p>' },
+  { title: "What are Civil Rights?", num: "Slide 7", body: '<p>Civil Rights are the rights of individuals to receive equal treatment and to be free from unfair treatment or discrimination based on established legally protected classes.</p><p>Civil Rights are guaranteed by the 13th and 14th Amendments of the Constitution and Acts of Congress.</p>' },
+  { title: "Civil Rights through Legal Authorities", num: "Slide 8", body: '<ul><li>The <strong>Civil Rights Act of 1964</strong> made it illegal to discriminate on the basis of race, color or national origin.</li><li>The <strong>Civil Rights Restoration Act of 1967</strong> clarified the broad scope of the Civil Rights Act of 1964.</li><li>The <strong>Americans with Disability Act</strong> prohibits discrimination against individuals with disabilities in all areas of public life.</li><li>The <strong>Rehabilitation Act (Section 504 &amp; 508)</strong> offers protection to people with disabilities and requires federal agencies make electronic and information technology accessible.</li><li><strong>Title IX of the Education Amendments Act of 1972</strong> prohibits discrimination based on sex under any education program.</li><li>The <strong>Age Discrimination Act of 1975</strong> prohibits discrimination based on age.</li></ul>' },
+  { title: "What is Discrimination?", num: "Slide 9", body: '<p>Discrimination is the unjust treatment of different categories of people or objects:</p><ul><li>Intentionally</li><li>By neglect</li><li>By the actions or lack of actions based on the protected classes</li></ul>' },
+  { title: "Protected Classes", num: "Slide 10", body: '<p>There are six protected classes within federal programs.</p><p>Discrimination is prohibited against any beneficiary based on:</p><ul><li><strong>Race</strong></li><li><strong>Color</strong></li><li><strong>Age</strong></li><li><strong>Sex (including gender identity and sexual orientation)</strong></li><li><strong>Disability</strong></li><li><strong>National Origin</strong></li></ul>' },
+  { title: "Examples of Discrimination", num: "Slide 11", body: '<p>Few examples of discrimination within food programs could include refusing or neglecting to do any of the following:</p><ul><li>Announcing the program publicly so that all eligible people are aware of the program.</li><li>Providing program information in languages other than English.</li><li>Providing beneficiaries with information on how to file a complaint.</li><li>Providing reasonable accommodations as necessary.</li></ul>' },
+  { title: "Public Notification Requirements", num: "Slide 12", body: '<p>Any provider administering TEFAP or CSFP programs must include a public notification system.</p><p>The purpose of a public notification is to inform applicants, beneficiaries and eligible individuals of these programs. Including benefits, eligibility criteria, times and locations.</p>' },
+  { title: "Components of Public Notification", num: "Slide 13", body: '<p>Providers are responsible for ensuring the following public notification components are met:</p><ol><li style="margin-bottom:0.5rem;"><strong>Announcing program availability</strong> – Informing beneficiaries and potential eligible individuals of their program rights and responsibilities as well as steps necessary for participation.</li><li style="margin-bottom:0.5rem;"><strong>Procedure to file a program complaint must be available</strong> – Advising the beneficiaries on how to file a complaint of discrimination, if needed.</li><li style="margin-bottom:0.5rem;"><strong>Ensuring the nondiscrimination statement is included on program materials</strong> – Providers must include in all materials that are produced for public information, public education and public distribution.</li><li style="margin-bottom:0.5rem;"><strong>Prominently display the USDA And Justice for All poster</strong> – The poster should not be placed in a locked office away from clients.</li></ol>' },
+  { title: "Nondiscrimination Statement (NDS)", num: "Slide 14", body: '<p>The nondiscrimination statement guidelines are:</p><ul><li>Must be available in other languages.</li><li>The entire statement cannot be changed.</li><li>Must be printed and posted in all electronic materials, including websites.</li><li>Hard copies should be available at each distribution site in case beneficiaries request information on how to file a complaint with USDA.</li></ul>' },
+  { title: "Essential Program Materials", num: "Slide 15", body: '<p>Essential program materials are printed or electronic and include information pertaining to participation or obtaining benefits from the USDA food programs.</p><p>The nondiscrimination statement must be included on all essential materials including but not limited to:</p><ul><li>Program applications</li><li>Notifications of eligibility or ineligibility</li><li>Expiration of eligibility notices</li><li>Consent forms</li><li>Notices of rights and responsibilities</li><li>Disciplinary action notices</li><li>Letters requiring a response from the beneficiary</li><li>Any program material that is critical for participating in the program</li></ul>' },
+  { title: "Full Nondiscrimination Statement (NDS)", num: "Slide 16", body: '<div class="nds-box"><p>In accordance with federal civil rights law and U.S. Department of Agriculture (USDA) civil rights regulations and policies, this institution is prohibited from discriminating on the basis of race, color, national origin, sex (including gender identity and sexual orientation), disability, age, or reprisal or retaliation for prior civil rights activity.</p><br><p>Program information may be made available in languages other than English. Persons with disabilities who require alternative means of communication to obtain program information (e.g., Braille, large print, audiotape, American Sign Language), should contact the responsible state or local agency that administers the program or USDA\'s TARGET Center at (202) 720-2600 (voice and TTY) or contact USDA through the Federal Relay Service at (800) 877-8339.</p><br><p>To file a program discrimination complaint, a Complainant should complete a Form AD-3027, USDA Program Discrimination Complaint Form which can be obtained online at: https://www.usda.gov/sites/default/files/documents/USDA-OASCR%20P-ComplaintForm-0508-0002-508-11-28-17Fax2Mail.pdf, from any USDA office, by calling (866) 632-9992, or by writing a letter addressed to USDA. The letter must contain the complainant\'s name, address, telephone number, and a written description of the alleged discriminatory action in sufficient detail to inform the Assistant Secretary for Civil Rights (ASCR) about the nature and date of an alleged civil rights violation. The completed AD-3027 form or letter must be submitted to USDA by:</p><br><p><strong>Mail:</strong> U.S. Department of Agriculture, Office of the Assistant Secretary for Civil Rights, 1400 Independence Avenue, SW, Washington, D.C. 20250-9410; or</p><p><strong>Fax:</strong> (833) 256-1665 or (202) 690-7442; or</p><p><strong>Email:</strong> program.intake@usda.gov</p><br><p><em>This institution is an equal opportunity provider.</em></p></div>' },
+  { title: "Short Nondiscrimination Statement", num: "Slide 17", body: '<p>If program materials are too small to permit the full statement, a short version of the nondiscrimination statement may be used. The full and short statements are available in different languages at: https://www.fns.usda.gov/cr/fns-nondiscrimination-statement</p><p><strong>English Version:</strong> "This institution is an equal opportunity provider"</p><p>The short nondiscrimination statement must meet the following guidelines:</p><ul><li>Same font and size as the main text</li><li>Cannot be modified</li><li>Only included in non-essential program materials</li></ul>' },
+  { title: "And Justice for All Poster", num: "Slide 18", body: '<p>Each agency, distribution site or certification site administering any USDA food programs are required to prominently display the appropriate "And Justice for All" poster where it can be easily viewed by clients.</p><ul><li>Translations into several languages are available online, if needed</li><li>Use the latest version AD-475A</li><li><strong>Poster must be displayed in a specific size: 11" width x 17" height</strong></li><li>Contact your assigned CDSS Program Consultant to request additional copies</li></ul>' },
+  { title: "Limited English Proficiency (LEP)", num: "Slide 19", body: '<p>Providers administering any of the USDA food programs must provide meaningful access to program information and services for individuals with limited English proficiency (LEP).</p><p>As defined by the U.S. Department of Justice, LEP individuals are persons who do not speak English as their primary language or have limited ability to read, write, speak and understand English.</p>' },
+  { title: "Language Access at Distributions", num: "Slide 20", body: '<p>A few examples of improving access to services for individuals with Limited English Proficiency (LEP) may include:</p><ul><li>Provide interpreters and bilingual staff on site</li><li>Telephonic language interpretation</li><li>Provide materials in different languages</li><li>Print materials with commonly used phrases</li></ul><p>The more frequent the contact with a particular language group, the more likely that enhanced language services are needed.</p>' },
+  { title: "American with Disabilities Act (ADA) Mandates", num: "Slide 21", body: '<p>The American with Disabilities Act (ADA) prohibits discrimination against individuals with disabilities in all areas of public life.</p><p>ADA mandates to provide reasonable modifications or adjustments to enable individuals with disabilities to have equal access to benefits or services.</p><p>The goal is to ensure equal access to food distribution programs for individuals with disabilities and making reasonable accommodations to provide the same level of service.</p>' },
+  { title: "Reasonable Accommodations", num: "Slide 22", body: '<p>A few examples of making reasonable accommodations might include:</p><ul><li>Modifying existing facilities to make them accessible or usable for individuals with disabilities</li><li>Acquiring or modifying equipment</li><li>Providing qualified readers or interpreters</li><li>Providing spaces for sitting</li><li>Reminding beneficiaries that an alternate can pick up on their behalf</li></ul>' },
+  { title: "Faith Based Organizations", num: "Slide 23", body: '<p>The goal for all providers is to ensure equal opportunity to all beneficiaries.</p><p>Any faith-based organization administering USDA food programs must follow specific requirements.</p>' },
+  { title: "General Information for Faith Based Organizations", num: "Slide 24", body: '<p>Faith based organizations administering USDA food programs:</p><ul><li>Cannot use federal funds to support religious activities.</li><li>Cannot require beneficiaries to participate in any faith-related activity at distribution sites in order to receive program benefits.</li><li>Do not have to remove any religious symbols at distribution sites.</li></ul>' },
+  { title: "Requirements", num: "Slide 25", body: '<p>Any faith based providers must issue a written notice of participant protections to applicants prior to the time they enroll or receive services.</p><p>In addition, organizations must make reasonable efforts to identify and refer beneficiaries to an alternate provider.</p><p>Clients requesting a referral must be provided with an alternate provider within <strong>reasonable geographic proximity.</strong></p>' },
+  { title: "Provider Restrictions", num: "Slide 26", body: '<ul><li>Beneficiaries have the right to report violations of these protections.</li><li>May not discriminate against beneficiaries on basis of religion or religious belief.</li><li>May not encourage beneficiaries to attend or participate in any religious activities that are offered by the organization.</li><li>Must separate in time or location any religious activities from activities supported by federal financial assistance.</li><li>Must make reasonable efforts to identify and refer beneficiaries to alternate providers.</li></ul>' },
+  { title: "USDA Discrimination Complaints", num: "Slide 27", body: '<p>USDA prohibits discrimination against any beneficiary when obtaining services from USDA or participating in any USDA food programs.</p><p>Beneficiaries may file a complaint directly with USDA within 180 days of the alleged discriminatory action.</p><p>Beneficiaries may file a complaint by completing the complaint form or writing a letter via:</p><ol><li>Mail</li><li>Fax</li><li>Email</li></ol><p><strong>Providers shall not interfere or prevent beneficiaries from making civil rights complaints.</strong> Beneficiaries can submit a civil rights complaint verbally or in writing.</p>' },
+  { title: "Complaints Procedure", num: "Slide 28", body: '<p>Providers should handle a civil rights complaint as follows:</p><ol><li style="margin-bottom:0.4rem;">Providers must give beneficiaries a copy of nondiscrimination statement at the time of the complaint.</li><li style="margin-bottom:0.4rem;">Providers should inform beneficiaries of their option to file the complaint with USDA directly.</li><li style="margin-bottom:0.4rem;">USDA civil rights complaint forms should be available for beneficiaries at distribution sites. If necessary, providers should assist the beneficiaries in completing the complaint form.</li><li style="margin-bottom:0.4rem;">Providers must document the complaint in a log with information relevant to investigate and resolve the complaint. This log must be separate from other program-related complaints and maintained for three fiscal years plus current year.</li><li style="margin-bottom:0.4rem;">If beneficiaries submit the complaint form directly to the provider, the provider must mail it to USDA within 180 days if the alleged action.</li><li style="margin-bottom:0.4rem;">If a beneficiary submits a verbal complaint the provider must forward the complaint to USDA within 180 days from the alleged action.</li><li style="margin-bottom:0.4rem;">Provider must notify their CDSS Program Consultant of any civil rights complaint within two days of learning about the complaint.</li></ol>' },
+  { title: "USDA Complaint Form", num: "Slide 29", body: '<p>USDA developed a complaint form to streamline the way civil rights complaints are received and processed.</p><p><strong>The use of the USDA complaint form is not mandatory.</strong></p><p>Providers may choose to develop and use their own complaint form or allow for beneficiaries to submit a letter as long as the same information is provided.</p>' },
+  { title: "Customer Service", num: "Slide 30", body: '<p>Customer service is an important part of handling complaints.</p><p>To provide quality customer service, staff should:</p><ul><li>Ensure program is available to all</li><li>Treat everyone equally with respect and politeness</li><li>Evaluate if there are barriers preventing individuals from receiving benefits and try to eliminate them</li><li>Be understanding and a good listener</li><li>Offer assistance</li><li>Serve beneficiaries in a timely manner</li><li>Apologize for any inconveniences</li></ul>' },
+  { title: "Conflict Resolution", num: "Slide 31", body: '<p>Providers should follow conflict resolution techniques when handling complaints to ensure optimal resolutions.</p><p>Conflict resolution techniques include:</p><ul><li>Remain calm, non-defensive, and respectful in all interactions</li><li>Recognize and respond to things that matter</li><li>Ensure fairness and confidentiality at all times</li><li>Seek compromise within program regulations</li><li>If resolution is not achieved, seek a neutral individual to assist with resolving the conflict</li><li>Review the situation with supervisors to review strategies for addressing future conflicts</li></ul>' },
+  { title: "Provider Compliance Review", num: "Slide 32", body: '<p>During the provider\'s compliance review, a CDSS Program Consultant will verify all regulations are being followed regarding civil rights.</p><p>Areas that will be reviewed include:</p><ul><li>Providers procedures to handle a civil rights complaint</li><li>Availability of a civil rights complaint log</li><li>Proper display of the And Justice for All posters</li><li>Nondiscrimination statement available on all program materials</li><li>Documentation of completion of annual civil rights training for staff and volunteers</li></ul>' },
+  { title: "Racial & Ethnic Data Collection", num: "Slide 33", body: '<p>Providers administering the CSFP program must establish a system to collect racial and ethnic information from beneficiaries. The reason for collecting this information is to ensure the program is administered in a nondiscriminatory manner.</p><p>Self-identification or self-reporting of this information is the preferred method. The beneficiary\'s response will not affect the enrollment or participation in the program. In addition, this information will be protected under the Privacy Act.</p><p>If beneficiaries decline to self-identify, providers should inform beneficiaries that a visual identification of their race and ethnicity will be made and recorded.</p><p>Providers shall collect this information for any beneficiary receiving a food package during the month of April each year.</p><p>Data collected should be added on the FNS-191 Racial and Ethnic Group Participation Form and submitted to CDSS in May each year.</p>' },
+  { title: "Knowledge Scenarios", num: "Slide 34", body: '<p>Now that civil rights regulations and complaints have been reviewed. It is time to check your knowledge acquired through this training.</p><p>The next set of questions will address possible scenarios providers and staff may encounter while administering USDA food programs.</p>' },
+  { title: "Check for Learning 1", num: "Slide 35", body: '<div class="scenario-box"><div class="label">Scenario</div><p>An individual in a wheelchair complained that the site where he was told to pick up his food package is not accessible to local public transportation.</p></div><div class="scenario-box" style="border-left-color:#e9a000;"><div class="label">Question</div><p>What steps could be taken in this scenario? How can this person be accommodated?</p></div><div class="scenario-box" style="border-left-color:#0F6E56;"><div class="label">Possible Solutions</div><p>Provide information on how to file a complaint if the person wishes to do so, offer home delivery services if available, provide information of a distribution site closer to public transportation or ask the beneficiary to identify/appoint a proxy.</p></div>' },
+  { title: "Check for Learning 2", num: "Slide 36", body: '<div class="scenario-box"><div class="label">Scenario</div><p>A beneficiary tries to speak with a volunteer at a food distribution site in a language other than English but the volunteer does not understand the beneficiary. The beneficiary leaves without being served.</p></div><div class="scenario-box" style="border-left-color:#e9a000;"><div class="label">Question</div><p>How should that situation have been handled by the volunteer?</p></div><div class="scenario-box" style="border-left-color:#0F6E56;"><div class="label">Possible Solutions</div><p>The volunteer should know the site\'s protocol in serving persons with LEP (which vary by site). If the site has telephonic interpretation available, the volunteer would follow the protocol to access it. If the site has bilingual staff, the staff would work with the manager to get the person with LEP to that bilingual staffer.</p></div>' },
+  { title: "Check for Learning 3", num: "Slide 37", body: '<div class="scenario-box"><div class="label">Scenario</div><p>A reviewer from the State visits a CSFP or TEFAP distribution site and sees the "And Justice For All" poster displayed in the manager\'s office, which is located in an area that is off limits to program applicants and beneficiaries.</p></div><div class="scenario-box" style="border-left-color:#e9a000;"><div class="label">Questions</div><p>Is this a Civil Rights violation? Why or why not?</p></div><div class="scenario-box" style="border-left-color:#0F6E56;"><div class="label">Answer</div><p>Yes, this is a Civil Rights violation. Per regulations, the "And Justice For All" poster must be prominently located where program applicants and beneficiaries can view it. The poster must be displayed at the point of service.</p></div>' },
+  { title: "Resources", num: "Slide 39", body: '<ul><li><strong>USDA Civil Rights Division website:</strong> https://www.fns.usda.gov/civil-rights</li><li><strong>USDA Program Discrimination Complaint Form:</strong> https://www.fns.usda.gov/cr/and-justice-all-posters-guidance-andtranslations</li><li><strong>Nondiscrimination Statement webpage:</strong> https://www.fns.usda.gov/cr/fns-nondiscrimination-statement</li><li><strong>And Justice for All Posters Guidance and Translations webpage:</strong> https://www.fns.usda.gov/cr/and-justice-all-posters-guidance-andtranslations</li></ul>' },
+  { title: "Congratulations!", num: "Slide 38", body: '<div style="text-align:center;padding:2rem 0;"><div style="font-size:52px;margin-bottom:1rem;">&#127881;</div><p style="font-size:20px;font-weight:700;color:#1a4f8a;margin-bottom:0.75rem;">YOU HAVE COMPLETED THE ANNUAL CIVIL RIGHTS TRAINING!</p><p style="font-size:15px;color:#555;">PLEASE SIGN THE LEVEL 2 TRAINING CERTIFICATION ON THE FDU 113 FORM.</p><p style="margin-top:1.25rem;font-size:14px;color:#555;">Click <strong>Proceed to Checklist</strong> below to initial and sign your certificate.</p></div>' }
+];
+var checklistItems = [
+  { id:"ci1", title:"TYPES OF DISCRIMINATION", body:"1. Disparate treatment (treating a person differently from others); 2. Disparate impact (neutral rule impacts disproportionately on a group); 3. Reprisal/retaliation against complainant or his/her family, associates or others involved in complaint process or exercising civil rights." },
+  { id:"ci2", title:"EXCEPTIONS", body:"Congress can establish a program that is intended for certain groups of people and it is not discrimination to exclude those who do not meet eligibility requirements. For example, Congress can set age limits, and this is not age discrimination for those who do not meet the age limits." },
+  { id:"ci3", title:"WHEN DO CIVIL RIGHTS RULES APPLY?", body:"Federal civil rights rules apply any time there is any federal financial assistance. Federal financial assistance is receiving anything of value from the federal government- not just cash. It can include commodities, training, equipment, and other goods and services." },
+  { id:"ci4", title:"LEGAL PROHIBITIONS", body:"The policy of the CDSS Food Assistance Programs is to not discriminate against any class of persons in the delivery of services to clients. CDSS expects local programs to provide food to every eligible person who seeks it, regardless of their status as a member of any class of persons. Any Eligible Recipient Agency (ERA) or local agency that directly or through a sub site is found to be discriminating against any class of people is at risk of termination from the program subsequent to an investigation." },
+  { id:"ci5", title:"FEDERAL PROTECTED CLASSES", body:"Under federal law for the purposes of TEFAP and CSFP, the protected classes under which a client may file a discrimination complaint are race, color, national origin, sex (including gender identity and sexual orientation), disability and age. The state of California has additional protected classes including, religious creed and political beliefs. Complaints based on these classes may be pursued at the state level. It is also important to note that perception of belonging to a protected class and association with a member of a protected class are also covered in California under a general non-compliance section of the Government Code and may give rise to its own complaint outside of the USDA process." },
+  { id:"ci6", title:"FILING A FEDERAL CIVIL RIGHTS COMPLAINT", body:"Advise people who allege discrimination based on one or more of the federal protected classes listed above on how to file a complaint by using the USDA Program Discrimination Complaint Form (AD-3027). To request a copy of the complaint form, complainants may call (866) 632-9992. Completed forms or letters may be mailed, faxed or emailed to USDA at: U.S. Department of Agriculture, Office of the Assistant Secretary for Civil Rights, 1400 Independence Avenue SW, Washington, DC 20250-9410. Fax: (202) 690-7442; Email: program.intake@usda.gov." },
+  { id:"ci7", title:"MAINTAIN CONFIDENTIALITY", body:"Do not talk about or make remarks about people receiving benefits. Never share information with others even if your intention is to help recipients with other services or assistance. Refer all requests for information about recipients from other agencies or programs to managers. Always get a recipient's written approval to share their information or make referrals on their behalf. What happens at the site stays at the site. The exception, of course, is any illegal or inappropriate behavior that should be reported to state or federal officials." },
+  { id:"ci8", title:"COOPERATE WITH STATE AND FEDERAL REVIEWERS", body:"USDA and CDSS are required to conduct periodic compliance reviews to help ensure compliance with program and civil rights rules." },
+  { id:"ci9", title:"ELIGIBLE RECIPIENT AGENCY MUST TAKE ACTION", body:"The ERA or local agency must accept all complaints (program, vendor or civil rights) received by the agency and forward to CDSS regardless of whether the complaints are written, verbal, or anonymous. Details for filing complaints are outlined in Section XV of the FNS 113-1 document." },
+  { id:"ci10", title:"CORRECTIVE ACTION FOR NON-COMPLYING AGENCIES", body:"If there is non-compliance with federal nondiscrimination law by the ERA or sub distributing site, the state will file a report with the USDA FNS Civil Rights Division and will immediately seek correction of the violation by voluntary compliance. Failure of the ERA or sub site to correct any non-compliance with civil rights rules can lead to legal actions and termination from the Federal programs TEFAP and CSFP, as applicable." },
+  { id:"ci11", title:"ACCOMMODATE PEOPLE WITH DISABILITIES", body:"A disability is a physical or mental impairment which substantially limits an individual's major life activities (such as those who are deaf, hard of hearing or have speech disabilities). Reasonable accommodation is a modification or adjustment to enable individuals with disabilities to have equal access to benefits and privileges of a service or program. Some examples are providing reserved parking for people with disabilities, wheelchair ramps, and chairs or shaded waiting areas for those who have mobility issues. Individuals who are deaf, hard of hearing or have speech disabilities may contact USDA for accommodations through the Federal Relay Service at (800) 877-8339 (English); or (800) 845-6136 (Spanish)." },
+  { id:"ci12", title:"SERVICES FOR PERSONS WITH LIMITED ENGLISH PROFICIENCY", body:"Individuals who do not speak English as their primary language and who have a limited ability to read, speak, write, or understand English are considered to have Limited English Proficiency (LEP). Meaningful access to program information and services by persons with LEP is required; that means timely, appropriate and effective language services. This may include providing interpreters and providing printed materials in different languages. Consult your supervisor for assistance." },
+  { id:"ci13", title:"SEXUAL HARASSMENT IS PROHIBITED", body:"Do not engage in or tolerate unwanted or unwelcomed sexual behavior, including jokes, touching, request for sexual favors, etc. Report all violations to your management, state or federal officials." },
+  { id:"ci14", title:"RESPONDING TO CONFLICTS/EMERGENCIES", body:"If conflict occurs, remain calm. Call for assistance immediately if you feel threatened. Consider mediation or a third party to help resolve the situation if there is no immediate resolution." },
+  { id:"ci15", title:"CUSTOMER SERVICE", body:"Treat all people with dignity and respect. Follow the golden rule and treat people the way you would like to be treated. Customer service is an important part of the complaint process, most times people just want to tell their side of the story. A listening ear can make the difference between calming the person down or making the situation worse. When handling a complaint: 1. Treat everyone equally. 2. Evaluate if there are barriers that are preventing or deterring the person from receiving benefits and try to eliminate them. 3. Be respectful. Remember when people are angry, you can feel that they are taking their frustration out on you." },
+  { id:"ci16", title:"PUBLIC NOTIFICATION REQUIREMENTS", body:"Ensure potentially eligible persons are aware of the program and have information on how to apply and their rights and responsibilities as a participant." },
+  { id:"ci17", title:"REQUIRED POSTINGS", body:'Each ERA, local agency, distribution site, and certification site must display the \'And Justice for All\' poster, including translations if necessary, near the location where applicants apply or register for the program. All \'And Justice for All\' posters must be displayed in a specific size: 11" width x 17" height. The nondiscrimination statement must be placed on all program materials, including websites.' },
+  { id:"ci18", title:"CSFP REQUIREMENT ONLY – FNS 191 Racial and Ethnic Data Collection", body:"Each local agency and/or each sub-site shall collect the number of participants receiving food packages by racial/ethnic category during the month of April each year, unless otherwise specified by CDSS. Self-identification or self-reporting of this information is the preferred method. The FNS-191 report must be submitted each year to CDSS." }
+];
+var FIELD_MAP = {"empName": "FDU 113  2", "trainDate": "FDU 113  3", "nextDate": "FDU 113  4", "ci1": "FDU 113  5", "ci2": "FDU 113  6", "ci3": "FDU 113  7", "ci4": "FDU 113  8", "ci5": "FDU 113  9", "ci6": "FDU 113  10", "ci7": "FDU 113  11", "ci8": "FDU 113  12", "ci9": "FDU 113  13", "ci10": "FDU 113  14", "ci11": "FDU 113  15", "ci12": "FDU 113  16", "ci13": "FDU 113  17", "ci14": "FDU 113  18", "ci15": "FDU 113  19", "ci16": "FDU 113  20", "ci17": "FDU 113  21", "csfp-init": "FDU 113  22", "l1-name": "FDU 113  23", "l1-agency": "FDU 113  24", "l2-name": "FDU 113  27", "l2-agency": "FDU 113  28"};
+
+var ADMIN_PASSWORD = 'Admin1234';
+/** Local mirror key; value is JSON: { records: [...] }. PDF bytes are never stored remotely. */
+var STORAGE_KEY = 'fdu113_records';
+
+const GH_TOKEN = 'github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
+const GH_CRT_API = 'https://api.github.com/repos/fbccs-internal/publicappdata/contents/CRT/data.json';
+const GH_REPO_API = 'https://api.github.com/repos/fbccs-internal/publicappdata/contents/';
+
+var crtRecords = [];
+var crtMeta = { currentTemplateVersion: 'v1' };
+var crtRemoteSha = null;
+var crtSyncTimer = null;
+var crtHydratePromise = null;
+
+var templateCache = {}; // version string → Uint8Array, lives for the session
+
+// ── GIT SYNC + STORAGE (CRT/data.json metadata only) ─────────────────────────
+function setCRTSyncState(state) {
+  var el = document.getElementById('crtSyncStat');
+  if (!el) return;
+  var S = {
+    idle: ['','rgba(255,255,255,.55)'],
+    syncing: ['\u27F3 Saving\u2026','rgba(126,200,227,.95)'],
+    saved: ['\u2713 Saved','rgba(212,237,218,.98)'],
+    conflict: ['\u26A0 Conflict, retrying\u2026','#fbbf24'],
+    error: ['\u2715 Save error','#fca5a5']
+  };
+  var pair = S[state] || S.idle;
+  el.textContent = pair[0];
+  el.style.color = pair[1];
+  if (state === 'saved') setTimeout(function() { setCRTSyncState('idle'); }, 3200);
+}
+function normalizeCRTLoadPayload(data) {
+  if (!data && data !== 0) return [];
+  if (Array.isArray(data)) return data;
+  if (data.records && Array.isArray(data.records)) return data.records;
+  return [];
+}
+function normalizeCRTMeta(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { currentTemplateVersion: 'v1' };
+  var m = data.meta;
+  if (!m || typeof m !== 'object') return { currentTemplateVersion: 'v1' };
+  return { currentTemplateVersion: m.currentTemplateVersion || 'v1' };
+}
+function stripPdfFromSavedRecord(rec) {
+  var o = {};
+  for (var k in rec) {
+    if (Object.prototype.hasOwnProperty.call(rec, k) && k !== 'pdfB64') o[k] = rec[k];
+  }
+  return o;
+}
+function persistCRTMirror() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ meta: crtMeta, records: crtRecords }));
+  } catch(e) {}
+}
+async function crtGhGet() {
+  var res = await fetch(GH_CRT_API, { headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' } });
+  if (res.status === 404) {
+    crtRemoteSha = null;
+    return null;
+  }
+  if (!res.ok) throw new Error('GH GET ' + res.status);
+  var json = await res.json();
+  crtRemoteSha = json.sha;
+  return JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g, '')))));
+}
+async function crtGhPut(retrying) {
+  setCRTSyncState('syncing');
+  var payload = { meta: crtMeta, records: crtRecords.map(stripPdfFromSavedRecord) };
+  var bodyStr = JSON.stringify(payload);
+  var content = btoa(unescape(encodeURIComponent(bodyStr)));
+  var body = { message: 'CRT training records metadata', content: content };
+  if (crtRemoteSha) body.sha = crtRemoteSha;
+  var res = await fetch(GH_CRT_API, {
+    method: 'PUT',
+    headers: {
+      Authorization: 'token ' + GH_TOKEN,
+      Accept: 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (res.status === 409 && !retrying) {
+    try {
+      var merged = await crtGhGet();
+      if (merged) {
+        crtRecords = normalizeCRTLoadPayload(merged).map(stripPdfFromSavedRecord);
+        persistCRTMirror();
+      }
+      setCRTSyncState('conflict');
+      setTimeout(function() { crtGhPut(true); }, 500);
+    } catch(e) {
+      setCRTSyncState('error');
+    }
+    return;
+  }
+  if (!res.ok) {
+    setCRTSyncState('error');
+    return;
+  }
+  var respJson = await res.json();
+  crtRemoteSha = respJson.content.sha;
+  setCRTSyncState('saved');
+}
+function scheduleCRTWrite() {
+  try {
+    persistCRTMirror();
+  } catch(e) {}
+  clearTimeout(crtSyncTimer);
+  setCRTSyncState('syncing');
+  crtSyncTimer = setTimeout(function() { crtGhPut(false); }, 1500);
+}
+function crtBootstrapStorage() {
+  return (async function() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        crtRecords = normalizeCRTLoadPayload(parsed).map(stripPdfFromSavedRecord);
+        crtMeta = normalizeCRTMeta(parsed);
+      }
+    } catch(e) {}
+    try {
+      var remote = await crtGhGet();
+      if (remote) {
+        crtRecords = normalizeCRTLoadPayload(remote).map(stripPdfFromSavedRecord);
+        crtMeta = normalizeCRTMeta(remote);
+        persistCRTMirror();
+      }
+    } catch(e) {}
+    setCRTSyncState('idle');
+  })();
+}
+
+// ── SLIDES ──────────────────────────────────────────────────────────────────
+var currentSlide = 0;
+var READ_TIMES = [19, 19, 26, 15, 18, 15, 13, 30, 8, 9, 17, 11, 30, 15, 23, 30, 20, 21, 17, 17, 20, 14, 7, 13, 16, 20, 23, 30, 16, 19, 21, 20, 30, 12, 25, 30, 27, 8, 10];
+var slideTimer = null;
+var slideClickCount = 0;
+function renderSlide() {
+  var s = slides[currentSlide], isLast = currentSlide === slides.length-1;
+  var bodyClass = currentSlide === 15 ? 'slide-body-tall' : 'slide-body';
+  document.getElementById('slideContainer').innerHTML =
+    '<div class="slide-card"><div class="slide-num">'+s.num+' of '+slides.length+'</div>'+
+    '<div class="slide-title">'+s.title+'</div>'+
+    '<div class="'+bodyClass+'">'+s.body+'</div>'+
+    '<div class="scroll-hint" id="scrollHint">&#8595;&nbsp; Scroll down to see the full slide &nbsp;&#8595;</div>'+
+    '</div>';
+  document.getElementById('slideCounter').textContent = (currentSlide+1)+' / '+slides.length;
+  document.getElementById('prevBtn').disabled = (currentSlide===0);
+  var nb = document.getElementById('nextBtn');
+  nb.textContent = isLast ? 'Proceed to Checklist & Certificate →' : 'Next →';
+  nb.className = isLast ? 'btn btn-success' : 'btn btn-primary';
+  var pct = Math.round(((currentSlide+1)/slides.length)*100);
+  document.getElementById('progFill').style.width = pct+'%';
+  document.getElementById('progLabel').textContent = pct+'% complete';
+  // Start read timer
+  startReadTimer(READ_TIMES[currentSlide] || 10);
+}
+
+var toastTimeout = null;
+function showToast(msg) {
+  var t = document.getElementById('waitToast');
+  if (!t) return;
+  t.textContent = msg;
+  if (toastTimeout) clearTimeout(toastTimeout);
+  t.classList.add('show');
+  toastTimeout = setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+function checkScrollHint() {
+  var card = document.querySelector('.slide-card');
+  var body = card ? card.querySelector('.slide-body, .slide-body-tall') : null;
+  var hint = document.getElementById('scrollHint');
+  if (!body || !hint) return;
+  function update() {
+    var hasScroll = body.scrollHeight > body.clientHeight + 4;
+    var atBottom  = body.scrollTop + body.clientHeight >= body.scrollHeight - 8;
+    hint.classList.toggle('visible', hasScroll && !atBottom);
+  }
+  update();
+  body.onscroll = update;
+}
+
+function startReadTimer(seconds) {
+  if (slideTimer) clearTimeout(slideTimer);
+  // Reduce by 5% for each slide completed, min 3 seconds
+  var reduction = Math.pow(0.85, slideClickCount);
+  seconds = Math.max(3, Math.round(seconds * reduction));
+  var nb = document.getElementById('nextBtn');
+  nb.setAttribute('data-loading', '1');
+  nb.classList.add('btn-next-loading');
+  nb.style.setProperty('--fill-duration', seconds + 's');
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      nb.classList.add('filling');
+      setTimeout(checkScrollHint, 60);
+    });
+  });
+  slideTimer = setTimeout(function() {
+    nb.removeAttribute('data-loading');
+    nb.classList.remove('btn-next-loading', 'filling');
+    nb.style.removeProperty('--fill-duration');
+    var hint = document.getElementById('scrollHint');
+    if (hint) hint.classList.remove('visible');
+  }, seconds * 1000);
+}
+function nextSlide() {
+  var nb = document.getElementById('nextBtn');
+  if (nb && nb.getAttribute('data-loading')) {
+    showToast('⏳  Please take a moment to finish reading before moving on.');
+    return;
+  }
+  if (currentSlide < slides.length-1) { slideClickCount++; currentSlide++; renderSlide(); }
+  else { unlockTab('checklist'); showSection('checklist', document.getElementById('tab-checklist')); setLevel1Only(false); }
+}
+function prevSlide() { if (currentSlide>0) { currentSlide--; renderSlide(); } }
+
+// ── TABS ────────────────────────────────────────────────────────────────────
+function unlockTab(id) { var t=document.getElementById('tab-'+id); if(t) t.classList.remove('locked'); }
+function showSection(name, el) {
+  if (el && el.classList.contains('locked')) return;
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('section-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+}
+
+// ── WELCOME / ROLE SELECTION ────────────────────────────────────────────────
+var userRole = null; // 'yes' = Level 2 (management), 'no' = Level 1 only
+
+function selectRole(role) {
+  userRole = role;
+  // Update radio visuals
+  var yesOpt = document.getElementById('welcome-opt-yes');
+  var noOpt  = document.getElementById('welcome-opt-no');
+  var yesRad = document.getElementById('radio-yes');
+  var noRad  = document.getElementById('radio-no');
+
+  if (role === 'yes') {
+    yesOpt.style.borderColor = '#1a4f8a';
+    yesOpt.style.background  = '#f0f5fc';
+    noOpt.style.borderColor  = '#d8dde6';
+    noOpt.style.background   = '#fff';
+    yesRad.innerHTML = '<div style="width:12px;height:12px;border-radius:50%;background:#1a4f8a;"></div>';
+    noRad.innerHTML  = '';
+  } else {
+    noOpt.style.borderColor  = '#1a4f8a';
+    noOpt.style.background   = '#f0f5fc';
+    yesOpt.style.borderColor = '#d8dde6';
+    yesOpt.style.background  = '#fff';
+    noRad.innerHTML  = '<div style="width:12px;height:12px;border-radius:50%;background:#1a4f8a;"></div>';
+    yesRad.innerHTML = '';
+  }
+
+  var btn = document.getElementById('welcomeStartBtn');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+}
+
+function startTraining() {
+  if (!userRole) {
+    document.getElementById('welcomeError').style.display = 'block';
+    return;
+  }
+  document.getElementById('welcomeError').style.display = 'none';
+
+  if (userRole === 'yes') {
+    // Level 2: must complete full training first
+    // Ensure checklist stays locked until all slides are done
+    var cl = document.getElementById('tab-checklist');
+    if (cl) cl.classList.add('locked');
+    unlockTab('training');
+    showSection('training', document.getElementById('tab-training'));
+    renderSlide();
+  } else {
+    // Level 1 only: go straight to checklist, lock Level 2 cert
+    unlockTab('checklist');
+    showSection('checklist', document.getElementById('tab-checklist'));
+    setLevel1Only(true);
+  }
+}
+
+function setLevel1Only(isL1Only) {
+  // Hide/show Level 2 cert panel and CSFP section
+  var l2Panel = document.getElementById('level2-panel');
+  var csfpPanel = document.getElementById('csfp-panel');
+  if (l2Panel) l2Panel.style.display = isL1Only ? 'none' : 'block';
+  if (csfpPanel) csfpPanel.style.display = isL1Only ? 'none' : 'block';
+}
+
+// ── CHECKLIST ───────────────────────────────────────────────────────────────
+function renderChecklist() {
+  var html = '';
+  checklistItems.forEach(function(item) {
+    html += '<div class="checklist-item" id="wrap-'+item.id+'">'+
+      '<div class="item-title">'+item.title+'</div>'+
+      '<div class="item-body">'+item.body+'</div>'+
+      '<div class="initials-row"><label>Initials:</label>'+
+      '<input type="text" id="'+item.id+'" class="hi hi-sm" maxlength="5" placeholder="____" '+
+      'oninput="markInitialed(\'' + item.id + '\')"></div></div>';
+  });
+  document.getElementById('checklistItems').innerHTML = html;
+}
+function markInitialed(id) {
+  var el=document.getElementById(id), wrap=document.getElementById('wrap-'+id);
+  wrap.classList.toggle('initialed', el && el.value.trim().length>0);
+}
+
+// ── CERT PREVIEW ────────────────────────────────────────────────────────────
+function syncCertFields() {
+  document.getElementById('l1-name-d').textContent = document.getElementById('l1-name').value || ' ';
+  document.getElementById('l1-agency-d').textContent = document.getElementById('l1-agency').value || ' ';
+  document.getElementById('l2-name-d').textContent = document.getElementById('l2-name').value || ' ';
+  document.getElementById('l2-agency-d').textContent = document.getElementById('l2-agency').value || ' ';
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('empName').addEventListener('blur', function() {
+    var n=this.value.trim(); if(!n) return;
+    var parts=n.split(',');
+    var full = parts.length===2 ? parts[1].trim()+' '+parts[0].trim() : n;
+    if(!document.getElementById('l1-name').value) document.getElementById('l1-name').value=full;
+    if(!document.getElementById('l2-name').value) document.getElementById('l2-name').value=full;
+    syncCertFields();
+  });
+});
+
+// ── STORAGE HELPERS (records = metadata fields only; synced to CRT/data.json) ──
+async function loadRecords() {
+  if (crtHydratePromise) {
+    try { await crtHydratePromise; } catch(e) {}
+  }
+  return crtRecords.slice();
+}
+async function saveRecords(recordsArr) {
+  crtRecords = recordsArr.map(stripPdfFromSavedRecord);
+  scheduleCRTWrite();
+}
+async function deleteRecords() {
+  crtRecords = [];
+  persistCRTMirror();
+  clearTimeout(crtSyncTimer);
+  setCRTSyncState('syncing');
+  await crtGhPut(false);
+}
+
+// ── PDF GENERATION + SAVE ───────────────────────────────────────────────────
+async function generateAndSave() {
+  var btn=document.getElementById('genBtn'), status=document.getElementById('genStatus');
+  btn.disabled=true; btn.textContent='Generating...'; status.textContent='';
+
+  try {
+    // Collect values
+    var vals = {
+      empName:   document.getElementById('empName').value.trim(),
+      trainDate: document.getElementById('trainDate').value.trim(),
+      nextDate:  document.getElementById('nextDate').value.trim(),
+      'l1-name':   document.getElementById('l1-name').value.trim(),
+      'l1-agency': document.getElementById('l1-agency').value.trim(),
+      'l1-sig':    document.getElementById('l1-sig').value.trim(),
+      'l1-date':   document.getElementById('l1-date').value.trim(),
+      'l2-name':   document.getElementById('l2-name').value.trim(),
+      'l2-agency': document.getElementById('l2-agency').value.trim(),
+      'l2-sig':    document.getElementById('l2-sig').value.trim(),
+      'l2-date':   document.getElementById('l2-date').value.trim(),
+      'csfp-init': document.getElementById('csfp-init').value.trim()
+    };
+    checklistItems.forEach(function(item) {
+      vals[item.id] = document.getElementById(item.id).value.trim();
+    });
+
+    // Load and fill the original PDF using pdf-lib
+    var templateVersion = crtMeta.currentTemplateVersion;
+    var bytes = await fetchTemplate(templateVersion);
+    var pdfDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption: true});
+    var form = pdfDoc.getForm();
+
+    // Fill each mapped field
+    function fillField(fieldName, value) {
+      if (!value) return;
+      try {
+        var field = form.getTextField(fieldName);
+        field.setText(value);
+      } catch(e) { /* field may not exist */ }
+    }
+
+    Object.keys(FIELD_MAP).forEach(function(htmlId) {
+      fillField(FIELD_MAP[htmlId], vals[htmlId]);
+    });
+
+    // For the tiny sig/date fields on page 4, overlay text directly
+    var pages = pdfDoc.getPages();
+    var p4 = pages[3];
+    var font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    var blue = PDFLib.rgb(0.1, 0.1, 0.5);
+
+    // Level 1 sig: rect [41.8, 396.4, 54.7, 408.2] - overlay wider text nearby
+    // sig line center ~x=175, y=400; date ~x=490, y=400
+    if(vals['l1-sig'])  p4.drawText(vals['l1-sig'],  {x:42, y:398, size:7, font:font, color:blue});
+    if(vals['l1-date']) p4.drawText(vals['l1-date'], {x:402, y:397, size:7, font:font, color:blue});
+    // Level 2 sig: rect [41.0, 209.9] / date [401.0, 209.2]
+    if(vals['l2-sig'])  p4.drawText(vals['l2-sig'],  {x:41, y:211, size:7, font:font, color:blue});
+    if(vals['l2-date']) p4.drawText(vals['l2-date'], {x:401, y:211, size:7, font:font, color:blue});
+
+    // Flatten so fields are not editable (visible as printed)
+    form.flatten();
+
+    var pdfBytes = await pdfDoc.save();
+
+    // Metadata only persisted (GH + local mirror); user still gets local download below.
+    var records = await loadRecords();
+    var record = {
+      id: Date.now(),
+      name: vals['l1-name'] || vals['l2-name'] || vals.empName || 'Unknown',
+      agency: vals['l1-agency'] || vals['l2-agency'] || '',
+      trainDate: vals.trainDate,
+      nextDate: vals.nextDate,
+      completedAt: new Date().toLocaleString(),
+      level: (userRole === 'no') ? 'Level 1' : 'Level 2',
+      templateVersion: templateVersion
+    };
+    records.push(record);
+    await saveRecords(records);
+
+    // Download the PDF
+    var blob = new Blob([pdfBytes], {type:'application/pdf'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var safeName = (record.name).replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_') || 'Completed';
+    var safeAgency = (vals['l1-agency']||vals['l2-agency']||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
+    var filePrefix = safeAgency ? safeAgency+'_' : '';
+    a.download = filePrefix+'FDU113_'+safeName+'_'+vals.trainDate.replace(/\//g,'-')+'.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    status.textContent = '';
+    showCompletionScreen(vals['l1-name'] || vals['l2-name'] || vals.empName, vals.trainDate, vals['l1-agency'] || vals['l2-agency'] || '');
+  } catch(e) {
+    console.error(e);
+    status.textContent = 'Error: '+(e.message||String(e))+'. Check console for details.';
+    status.style.color='#c00';
+  }
+  btn.disabled=false;
+  btn.innerHTML='&#128196; Generate &amp; Save FDU 113 PDF';
+}
+
+// ── COMPLETION SCREEN ───────────────────────────────────────────────────────
+function showCompletionScreen(name, trainDate, agency) {
+  document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  document.getElementById('completionScreen').style.display = 'flex';
+  document.getElementById('comp-name').textContent = name || 'Trainee';
+  document.getElementById('comp-agency').textContent = agency ? 'Agency: ' + agency : '';
+  document.getElementById('comp-date').textContent = 'Training Date: ' + (trainDate || new Date().toLocaleDateString());
+}
+
+// ── ADMIN ───────────────────────────────────────────────────────────────────
+function exportToCSV() {
+  loadRecords().then(function(records) {
+    if (!records.length) { alert('No records to export.'); return; }
+    var headers = ['Name','Agency','Level','Training Date','Next Due','Completed At'];
+    var rows = records.map(function(r) {
+      return [
+        '"'+(r.name||'').replace(/"/g,'""')+'"',
+        '"'+(r.agency||'').replace(/"/g,'""')+'"',
+        '"'+(r.level||'Level 2')+'"',
+        '"'+(r.trainDate||'')+'"',
+        '"'+(r.nextDate||'')+'"',
+        '"'+(r.completedAt||'')+'"'
+      ].join(',');
+    });
+    var csv = headers.join(',') + '\n' + rows.join('\n');
+    var a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'CivilRightsTraining_' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); }, 100);
+  });
+}
+
+function adminLogin() {
+  var pass = document.getElementById('adminPass').value;
+  if(pass === ADMIN_PASSWORD) {
+    document.getElementById('adminLoginWrap').style.display='none';
+    document.getElementById('adminDash').style.display='block';
+    loadAdminDash();
+  } else {
+    document.getElementById('loginError').style.display='block';
+  }
+}
+function adminLogout() {
+  document.getElementById('adminLoginWrap').style.display='block';
+  document.getElementById('adminDash').style.display='none';
+  document.getElementById('adminPass').value='';
+  document.getElementById('loginError').style.display='none';
+}
+
+async function loadAdminDash() {
+  var records = await loadRecords();
+  var tbody = document.getElementById('adminTbody');
+  var empty = document.getElementById('adminEmpty');
+  document.getElementById('recordCount').textContent = records.length + ' record' + (records.length!==1?'s':'');
+
+  if(records.length === 0) {
+    tbody.innerHTML=''; empty.style.display='block'; return;
+  }
+  empty.style.display='none';
+  tbody.innerHTML = records.map(function(r, i) {
+    var lvl = r.level || 'Level 2';
+    var lvlColor = lvl === 'Level 1' ? '#7a4f00' : '#0F6E56';
+    var lvlBg    = lvl === 'Level 1' ? '#fef3e2' : '#eaf6f1';
+    return '<tr>'+
+      '<td>'+(i+1)+'</td>'+
+      '<td><strong>'+escHtml(r.name)+'</strong></td>'+
+      '<td>'+escHtml(r.agency||'—')+'</td>'+
+      '<td><span style="background:'+lvlBg+';color:'+lvlColor+';padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">'+escHtml(lvl)+'</span></td>'+
+      '<td>'+escHtml(r.trainDate||'—')+'</td>'+
+      '<td>'+escHtml(r.nextDate||'—')+'</td>'+
+      '<td>'+escHtml(r.completedAt)+'</td>'+
+      '<td>' + (r.pdfB64 ?
+        '<button class="download-btn" onclick="downloadRecord('+r.id+')">&#11015; PDF</button>' :
+        '<span title="Stored PDF attachments were removed from cloud sync; on-demand generation will arrive in a later update." style="font-size:12px;color:#888;">On-demand pending</span>')+
+      '</td>'+
+      '</tr>';
+  }).join('');
+}
+
+async function downloadRecord(id) {
+  var records = await loadRecords();
+  var r = records.find(function(rec){ return rec.id===id; });
+  if (!r) { alert('Record not found.'); return; }
+  if (!r.pdfB64) {
+    alert('This record has no archived PDF blob. Administrators will regenerate FDU PDFs from stored metadata in a coming update.');
+    return;
+  }
+  try {
+    var safeAgency = (r.agency||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
+    var safeName   = (r.name||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
+    var prefix     = safeAgency ? safeAgency + '_' : '';
+    var filename   = prefix + 'FDU113_' + safeName + '.pdf';
+    var a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + r.pdfB64;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); }, 100);
+  } catch(e) {
+    alert('Download error: ' + e.message);
+  }
+}
+
+
+async function clearAllRecords() {
+  if(!confirm('Delete ALL training records? This cannot be undone.')) return;
+  await deleteRecords();
+  loadAdminDash();
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── TEMPLATE FETCH ──────────────────────────────────────────────────────────
+async function ghGetBinary(path) {
+  var res = await fetch(GH_REPO_API + path, {
+    headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' }
+  });
+  if (!res.ok) throw new Error('Template fetch failed (' + res.status + '): ' + path);
+  var json = await res.json();
+  var b64 = json.content.replace(/\n/g, '');
+  var str = atob(b64);
+  var arr = new Uint8Array(str.length);
+  for (var i = 0; i < str.length; i++) arr[i] = str.charCodeAt(i);
+  return arr;
+}
+async function fetchTemplate(version) {
+  if (templateCache[version]) return templateCache[version];
+  var bytes = await ghGetBinary('CRT/templates/' + version + '.pdf');
+  templateCache[version] = bytes;
+  return bytes;
+}
+
+crtHydratePromise = crtBootstrapStorage();
+
+renderSlide();
+renderChecklist();
+</script>
+  <!-- TOAST -->
+  <div id="waitToast" class="toast"></div>
+
+  <!-- COMPLETION SCREEN -->
+  <div id="completionScreen" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,40,80,0.93);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:16px;padding:2.5rem 2rem;max-width:520px;width:100%;text-align:center;">
+      <div style="font-size:60px;margin-bottom:.75rem;">&#127881;</div>
+      <div style="width:68px;height:68px;background:#eaf6f1;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.1rem;font-size:34px;color:#0F6E56;">&#10003;</div>
+      <h2 style="font-size:22px;font-weight:700;color:#1a4f8a;margin-bottom:.6rem;">Training Complete!</h2>
+      <p style="font-size:14px;color:#555;margin-bottom:1.5rem;line-height:1.65;">You have successfully completed the<br><strong>Civil Rights Annual Training</strong>.<br>Your completion was recorded and your FDU 113 PDF downloaded to this device.</p>
+      <div style="background:#f4f6fa;border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;text-align:left;">
+        <div style="font-size:11px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Certificate Details</div>
+        <div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:3px;" id="comp-name"></div>
+        <div style="font-size:13px;color:#555;margin-bottom:2px;" id="comp-agency"></div>
+        <div style="font-size:13px;color:#555;" id="comp-date"></div>
+      </div>
+      <div style="background:#eaf6f1;border:1px solid #9fdbc8;border-radius:8px;padding:.8rem 1rem;margin-bottom:1.25rem;font-size:13px;color:#0F6E56;text-align:left;">
+        &#128197;&nbsp; Your next annual training is due one year from today. Please keep your downloaded FDU 113 for your records.
+      </div>
+      <p style="font-size:12px;color:#aaa;">You may now close this window or browser tab.</p>
+    </div>
+  </div>
+
+</body>
+</html>
