@@ -320,6 +320,7 @@ tr:hover td{background:#f5f8fc}
             <th>Next Due</th>
             <th>Completed</th>
             <th>Template</th>
+            <th>PDF</th>
           </tr></thead>
           <tbody id="adminTbody"></tbody>
         </table>
@@ -442,7 +443,7 @@ var checklistItems = [
 var FIELD_MAP = {"empName": "FDU 113  2", "trainDate": "FDU 113  3", "nextDate": "FDU 113  4", "ci1": "FDU 113  5", "ci2": "FDU 113  6", "ci3": "FDU 113  7", "ci4": "FDU 113  8", "ci5": "FDU 113  9", "ci6": "FDU 113  10", "ci7": "FDU 113  11", "ci8": "FDU 113  12", "ci9": "FDU 113  13", "ci10": "FDU 113  14", "ci11": "FDU 113  15", "ci12": "FDU 113  16", "ci13": "FDU 113  17", "ci14": "FDU 113  18", "ci15": "FDU 113  19", "ci16": "FDU 113  20", "ci17": "FDU 113  21", "csfp-init": "FDU 113  22", "l1-name": "FDU 113  23", "l1-agency": "FDU 113  24", "l2-name": "FDU 113  27", "l2-agency": "FDU 113  28"};
 
 var ADMIN_PASSWORD = 'Admin1234';
-/** Local mirror key; value is JSON: { records: [...] }. PDF bytes are never stored remotely. */
+/** Local mirror key; value is JSON: { records: [...], meta }. Records hold completion metadata plus pdfFields (text for each FDU 113 form slot). The blank PDF is never stored per record: fetch CRT/templates/{templateVersion}.pdf and fill it on demand for learner download or admin PDF. */
 var STORAGE_KEY = 'fdu113_records';
 
 const GH_TOKEN = 'github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
@@ -458,7 +459,7 @@ var crtHydratePromise = null;
 var templateCache = {}; // version string → Uint8Array, lives for the session
 var PDF_B64 = null; // FDU 113 template (lazy); remains embedded in HTML
 
-// ── GIT SYNC + STORAGE (CRT/data.json metadata only) ─────────────────────────
+// ── GIT SYNC + STORAGE (CRT/data.json: meta + completion rows; FDU PDF filled from template blob + pdfFields) ──
 function setCRTSyncState(state) {
   var el = document.getElementById('crtSyncStat');
   if (!el) return;
@@ -506,7 +507,8 @@ function normalizeCRTMeta(data) {
   }
   return out;
 }
-function stripPdfFromSavedRecord(rec) {
+/** Clone record for persistence/sync. Drops legacy pdfB64 if present — rendered PDFs are not stored; regenerate via template + pdfFields. */
+function cloneRecordForSync(rec) {
   var o = {};
   for (var k in rec) {
     if (Object.prototype.hasOwnProperty.call(rec, k) && k !== 'pdfB64') o[k] = rec[k];
@@ -531,7 +533,7 @@ async function crtGhGet() {
 }
 async function crtGhPut(retrying) {
   setCRTSyncState('syncing');
-  var payload = { meta: crtMeta, records: crtRecords.map(stripPdfFromSavedRecord) };
+  var payload = { meta: crtMeta, records: crtRecords.map(cloneRecordForSync) };
   var bodyStr = JSON.stringify(payload);
   var content = btoa(unescape(encodeURIComponent(bodyStr)));
   var body = { message: 'CRT training records metadata', content: content };
@@ -549,7 +551,7 @@ async function crtGhPut(retrying) {
     try {
       var merged = await crtGhGet();
       if (merged) {
-        crtRecords = normalizeCRTLoadPayload(merged).map(stripPdfFromSavedRecord);
+        crtRecords = normalizeCRTLoadPayload(merged).map(cloneRecordForSync);
         persistCRTMirror();
       }
       setCRTSyncState('conflict');
@@ -581,14 +583,14 @@ function crtBootstrapStorage() {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        crtRecords = normalizeCRTLoadPayload(parsed).map(stripPdfFromSavedRecord);
+        crtRecords = normalizeCRTLoadPayload(parsed).map(cloneRecordForSync);
         crtMeta = normalizeCRTMeta(parsed);
       }
     } catch(e) {}
     try {
       var remote = await crtGhGet();
       if (remote) {
-        crtRecords = normalizeCRTLoadPayload(remote).map(stripPdfFromSavedRecord);
+        crtRecords = normalizeCRTLoadPayload(remote).map(cloneRecordForSync);
         crtMeta = normalizeCRTMeta(remote);
         persistCRTMirror();
       }
@@ -821,7 +823,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// ── STORAGE HELPERS (records = metadata fields only; synced to CRT/data.json) ──
+// ── STORAGE HELPERS (records synced to CRT/data.json; FDU filled from repo template + pdfFields) ──────────────
 async function loadRecords() {
   if (crtHydratePromise) {
     try { await crtHydratePromise; } catch(e) {}
@@ -829,7 +831,7 @@ async function loadRecords() {
   return crtRecords.slice();
 }
 async function saveRecords(recordsArr) {
-  crtRecords = recordsArr.map(stripPdfFromSavedRecord);
+  crtRecords = recordsArr.map(cloneRecordForSync);
   scheduleCRTWrite();
 }
 async function deleteRecords() {
@@ -841,6 +843,46 @@ async function deleteRecords() {
 }
 
 // ── PDF GENERATION + SAVE ───────────────────────────────────────────────────
+function snapshotPdfFieldVals(vals) {
+  var o = {};
+  Object.keys(vals).forEach(function(k) {
+    if (Object.prototype.hasOwnProperty.call(vals, k)) o[k] = vals[k];
+  });
+  return o;
+}
+
+/** Fill the version-matched blank template (CRT/templates/{version}.pdf) with vals; returns bytes for download only (not persisted). */
+async function generateFduPdfBytes(vals, templateVersion) {
+  var bytes = await fetchTemplate(templateVersion || crtMeta.currentTemplateVersion);
+  var pdfDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption: true});
+  var form = pdfDoc.getForm();
+
+  function fillField(fieldName, value) {
+    if (!value) return;
+    try {
+      var field = form.getTextField(fieldName);
+      field.setText(value);
+    } catch(e) { /* field may not exist */ }
+  }
+
+  Object.keys(FIELD_MAP).forEach(function(htmlId) {
+    fillField(FIELD_MAP[htmlId], vals[htmlId]);
+  });
+
+  var pages = pdfDoc.getPages();
+  var p4 = pages[3];
+  var font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+  var blue = PDFLib.rgb(0.1, 0.1, 0.5);
+
+  if(vals['l1-sig'])  p4.drawText(vals['l1-sig'],  {x:42, y:398, size:7, font:font, color:blue});
+  if(vals['l1-date']) p4.drawText(vals['l1-date'], {x:402, y:397, size:7, font:font, color:blue});
+  if(vals['l2-sig'])  p4.drawText(vals['l2-sig'],  {x:41, y:211, size:7, font:font, color:blue});
+  if(vals['l2-date']) p4.drawText(vals['l2-date'], {x:401, y:211, size:7, font:font, color:blue});
+
+  form.flatten();
+  return pdfDoc.save();
+}
+
 async function generateAndSave() {
   var btn=document.getElementById('genBtn'), status=document.getElementById('genStatus');
   btn.disabled=true; btn.textContent='Generating...'; status.textContent='';
@@ -865,45 +907,10 @@ async function generateAndSave() {
       vals[item.id] = document.getElementById(item.id).value.trim();
     });
 
-    // Load and fill the original PDF using pdf-lib
     var templateVersion = crtMeta.currentTemplateVersion;
-    var bytes = await fetchTemplate(templateVersion);
-    var pdfDoc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption: true});
-    var form = pdfDoc.getForm();
+    var pdfBytes = await generateFduPdfBytes(vals, templateVersion);
 
-    // Fill each mapped field
-    function fillField(fieldName, value) {
-      if (!value) return;
-      try {
-        var field = form.getTextField(fieldName);
-        field.setText(value);
-      } catch(e) { /* field may not exist */ }
-    }
-
-    Object.keys(FIELD_MAP).forEach(function(htmlId) {
-      fillField(FIELD_MAP[htmlId], vals[htmlId]);
-    });
-
-    // For the tiny sig/date fields on page 4, overlay text directly
-    var pages = pdfDoc.getPages();
-    var p4 = pages[3];
-    var font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    var blue = PDFLib.rgb(0.1, 0.1, 0.5);
-
-    // Level 1 sig: rect [41.8, 396.4, 54.7, 408.2] - overlay wider text nearby
-    // sig line center ~x=175, y=400; date ~x=490, y=400
-    if(vals['l1-sig'])  p4.drawText(vals['l1-sig'],  {x:42, y:398, size:7, font:font, color:blue});
-    if(vals['l1-date']) p4.drawText(vals['l1-date'], {x:402, y:397, size:7, font:font, color:blue});
-    // Level 2 sig: rect [41.0, 209.9] / date [401.0, 209.2]
-    if(vals['l2-sig'])  p4.drawText(vals['l2-sig'],  {x:41, y:211, size:7, font:font, color:blue});
-    if(vals['l2-date']) p4.drawText(vals['l2-date'], {x:401, y:211, size:7, font:font, color:blue});
-
-    // Flatten so fields are not editable (visible as printed)
-    form.flatten();
-
-    var pdfBytes = await pdfDoc.save();
-
-    // Metadata only persisted (GH + local mirror); user still gets local download below.
+    // Persist completion row + pdfFields for later regeneration with same templateVersion; PDF file is not stored.
     var records = await loadRecords();
     var record = {
       id: Date.now(),
@@ -913,7 +920,8 @@ async function generateAndSave() {
       nextDate: vals.nextDate,
       completedAt: new Date().toLocaleString(),
       level: (userRole === 'no') ? 'Level 1' : 'Level 2',
-      templateVersion: templateVersion
+      templateVersion: templateVersion,
+      pdfFields: snapshotPdfFieldVals(vals)
     };
     records.push(record);
     await saveRecords(records);
@@ -1007,6 +1015,7 @@ async function loadAdminDash() {
       var lvl = r.level || 'Level 2';
       var lvlColor = lvl === 'Level 1' ? '#7a4f00' : '#0F6E56';
       var lvlBg    = lvl === 'Level 1' ? '#fef3e2' : '#eaf6f1';
+      var hasPdfFields = r.pdfFields && typeof r.pdfFields === 'object';
       return '<tr>'+
         '<td>'+(i+1)+'</td>'+
         '<td><strong>'+escHtml(r.name)+'</strong></td>'+
@@ -1016,6 +1025,7 @@ async function loadAdminDash() {
         '<td>'+escHtml(r.nextDate||'—')+'</td>'+
         '<td>'+escHtml(r.completedAt)+'</td>'+
         '<td><span style="font-size:12px;color:#888;" title="Template: '+(r.templateVersion||'v1')+'">'+escHtml(r.templateVersion||'v1')+'</span></td>'+
+        '<td><button type="button" class="download-btn"'+(hasPdfFields?'':' disabled style="opacity:.45;cursor:not-allowed" title="No pdfFields — cannot fill template (legacy row)"')+' onclick="adminGeneratePdf('+JSON.stringify(r.id)+')">&#128196; PDF</button></td>'+
         '</tr>';
     }).join('');
   }
@@ -1075,30 +1085,36 @@ function saveTrainingTimers() {
   status.style.color = '#0F6E56';
 }
 
-async function downloadRecord(id) {
-  var records = await loadRecords();
-  var r = records.find(function(rec){ return rec.id===id; });
-  if (!r) { alert('Record not found.'); return; }
-  if (!r.pdfB64) {
-    alert('This record has no archived PDF blob. Administrators will regenerate FDU PDFs from stored metadata in a coming update.');
-    return;
-  }
+async function adminGeneratePdf(recordId) {
   try {
-    var safeAgency = (r.agency||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
-    var safeName   = (r.name||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
-    var prefix     = safeAgency ? safeAgency + '_' : '';
-    var filename   = prefix + 'FDU113_' + safeName + '.pdf';
+    var records = await loadRecords();
+    var r = records.find(function(rec) { return rec.id === recordId; });
+    if (!r) {
+      alert('Record not found.');
+      return;
+    }
+    var vals = r.pdfFields;
+    if (!vals || typeof vals !== 'object') {
+      alert('This completion has no pdfFields payload (older saves only listed name/dates). New completions store the form text so the FDU 113 can be filled into the matching template from storage.');
+      return;
+    }
+    var pdfBytes = await generateFduPdfBytes(vals, r.templateVersion || crtMeta.currentTemplateVersion);
+    var blob = new Blob([pdfBytes], {type:'application/pdf'});
+    var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = 'data:application/pdf;base64,' + r.pdfB64;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function(){ document.body.removeChild(a); }, 100);
+    a.href = url;
+    var safeName = (r.name || 'Completed').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_') || 'Completed';
+    var safeAgency = (vals['l1-agency']||vals['l2-agency']||r.agency||'').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/ /g,'_');
+    var filePrefix = safeAgency ? safeAgency+'_' : '';
+    var td = (vals.trainDate || r.trainDate || '').replace(/\//g,'-');
+    a.download = filePrefix+'FDU113_'+safeName+'_'+td+'.pdf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } catch(e) {
-    alert('Download error: ' + e.message);
+    console.error(e);
+    alert('PDF error: '+(e.message||String(e)));
   }
 }
-
 
 async function clearAllRecords() {
   if(!confirm('Delete ALL training records? This cannot be undone.')) return;
