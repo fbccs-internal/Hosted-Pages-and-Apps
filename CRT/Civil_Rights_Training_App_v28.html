@@ -319,11 +319,38 @@ tr:hover td{background:#f5f8fc}
             <th>Training Date</th>
             <th>Next Due</th>
             <th>Completed</th>
-            <th>Download</th>
+            <th>Template</th>
           </tr></thead>
           <tbody id="adminTbody"></tbody>
         </table>
         <div id="adminEmpty" class="empty-state" style="display:none">No completed training records yet.</div>
+      </div>
+
+      <div class="form-panel" id="tmplPanel" style="margin-top:1rem">
+        <h3>PDF Template Management</h3>
+
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:.5rem">Active Default Version</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="tmplSelect" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid #c5cdd8;border-radius:8px;font-size:14px;font-family:Arial,sans-serif"></select>
+            <button class="btn btn-primary" onclick="setDefaultTemplate()" style="white-space:nowrap">Set Default</button>
+          </div>
+          <div id="tmplSelectStatus" style="font-size:12px;margin-top:.4rem;min-height:1.2em"></div>
+        </div>
+
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#444;margin-bottom:.5rem">Upload New Template Version</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="tmplVersionInput" placeholder="Version (e.g. v2)"
+                   style="width:150px;padding:9px 12px;border:1px solid #c5cdd8;border-radius:8px;font-size:14px;font-family:Arial,sans-serif">
+            <label style="flex:1;min-width:160px;display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed #c5cdd8;border-radius:8px;cursor:pointer;font-size:13px;color:#555;background:#fafbfc;user-select:none">
+              &#128196; <span id="tmplFileName">Choose PDF&#8230;</span>
+              <input type="file" id="tmplFile" accept=".pdf" style="display:none" onchange="document.getElementById('tmplFileName').textContent=this.files[0]?this.files[0].name:'Choose PDF…'">
+            </label>
+            <button class="btn btn-success" id="tmplUploadBtn" onclick="uploadNewTemplate()" style="white-space:nowrap">&#8593; Upload</button>
+          </div>
+          <div id="tmplUploadStatus" style="font-size:12px;margin-top:.5rem;min-height:1.2em"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -902,27 +929,26 @@ async function loadAdminDash() {
   document.getElementById('recordCount').textContent = records.length + ' record' + (records.length!==1?'s':'');
 
   if(records.length === 0) {
-    tbody.innerHTML=''; empty.style.display='block'; return;
+    tbody.innerHTML=''; empty.style.display='block';
+  } else {
+    empty.style.display='none';
+    tbody.innerHTML = records.map(function(r, i) {
+      var lvl = r.level || 'Level 2';
+      var lvlColor = lvl === 'Level 1' ? '#7a4f00' : '#0F6E56';
+      var lvlBg    = lvl === 'Level 1' ? '#fef3e2' : '#eaf6f1';
+      return '<tr>'+
+        '<td>'+(i+1)+'</td>'+
+        '<td><strong>'+escHtml(r.name)+'</strong></td>'+
+        '<td>'+escHtml(r.agency||'—')+'</td>'+
+        '<td><span style="background:'+lvlBg+';color:'+lvlColor+';padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">'+escHtml(lvl)+'</span></td>'+
+        '<td>'+escHtml(r.trainDate||'—')+'</td>'+
+        '<td>'+escHtml(r.nextDate||'—')+'</td>'+
+        '<td>'+escHtml(r.completedAt)+'</td>'+
+        '<td><span style="font-size:12px;color:#888;" title="Template: '+(r.templateVersion||'v1')+'">'+escHtml(r.templateVersion||'v1')+'</span></td>'+
+        '</tr>';
+    }).join('');
   }
-  empty.style.display='none';
-  tbody.innerHTML = records.map(function(r, i) {
-    var lvl = r.level || 'Level 2';
-    var lvlColor = lvl === 'Level 1' ? '#7a4f00' : '#0F6E56';
-    var lvlBg    = lvl === 'Level 1' ? '#fef3e2' : '#eaf6f1';
-    return '<tr>'+
-      '<td>'+(i+1)+'</td>'+
-      '<td><strong>'+escHtml(r.name)+'</strong></td>'+
-      '<td>'+escHtml(r.agency||'—')+'</td>'+
-      '<td><span style="background:'+lvlBg+';color:'+lvlColor+';padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;">'+escHtml(lvl)+'</span></td>'+
-      '<td>'+escHtml(r.trainDate||'—')+'</td>'+
-      '<td>'+escHtml(r.nextDate||'—')+'</td>'+
-      '<td>'+escHtml(r.completedAt)+'</td>'+
-      '<td>' + (r.pdfB64 ?
-        '<button class="download-btn" onclick="downloadRecord('+r.id+')">&#11015; PDF</button>' :
-        '<span title="Stored PDF attachments were removed from cloud sync; on-demand generation will arrive in a later update." style="font-size:12px;color:#888;">On-demand pending</span>')+
-      '</td>'+
-      '</tr>';
-  }).join('');
+  renderTemplateManager();
 }
 
 async function downloadRecord(id) {
@@ -978,6 +1004,121 @@ async function fetchTemplate(version) {
   var bytes = await ghGetBinary('CRT/templates/' + version + '.pdf');
   templateCache[version] = bytes;
   return bytes;
+}
+
+// ── TEMPLATE MANAGEMENT (admin) ─────────────────────────────────────────────
+async function fetchTemplateVersions() {
+  var res = await fetch(GH_REPO_API + 'CRT/templates/', {
+    headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' }
+  });
+  if (!res.ok) throw new Error('Could not list templates (' + res.status + ')');
+  var files = await res.json();
+  return files
+    .filter(function(f) { return f.name.toLowerCase().endsWith('.pdf'); })
+    .map(function(f) { return f.name.replace(/\.pdf$/i, ''); })
+    .sort();
+}
+
+async function renderTemplateManager() {
+  var sel = document.getElementById('tmplSelect');
+  var status = document.getElementById('tmplSelectStatus');
+  if (!sel) return;
+  sel.innerHTML = '<option disabled>Loading…</option>';
+  status.textContent = '';
+  try {
+    var versions = await fetchTemplateVersions();
+    if (!versions.length) {
+      sel.innerHTML = '<option disabled>No templates found</option>';
+      return;
+    }
+    sel.innerHTML = versions.map(function(v) {
+      var isCurrent = v === crtMeta.currentTemplateVersion;
+      return '<option value="' + escHtml(v) + '"' + (isCurrent ? ' selected' : '') + '>'
+        + escHtml(v) + (isCurrent ? ' — current' : '') + '</option>';
+    }).join('');
+  } catch(e) {
+    sel.innerHTML = '<option disabled>Error loading versions</option>';
+    status.textContent = e.message;
+    status.style.color = '#c00';
+  }
+}
+
+async function setDefaultTemplate() {
+  var sel = document.getElementById('tmplSelect');
+  var status = document.getElementById('tmplSelectStatus');
+  var version = sel.value;
+  if (!version) return;
+  crtMeta.currentTemplateVersion = version;
+  scheduleCRTWrite();
+  status.textContent = '✓ Default set to “' + version + '”';
+  status.style.color = '#0F6E56';
+  renderTemplateManager();
+}
+
+function uint8ToB64(bytes) {
+  var binary = '', chunk = 8192;
+  for (var i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function uploadNewTemplate() {
+  var versionInput = document.getElementById('tmplVersionInput');
+  var fileInput    = document.getElementById('tmplFile');
+  var status       = document.getElementById('tmplUploadStatus');
+  var btn          = document.getElementById('tmplUploadBtn');
+
+  var version = versionInput.value.trim();
+  var file    = fileInput.files[0];
+
+  status.style.color = '#c00';
+  if (!version)                              { status.textContent = 'Enter a version name.'; return; }
+  if (!/^[a-zA-Z0-9._-]+$/.test(version))   { status.textContent = 'Version: letters, numbers, dots, hyphens only.'; return; }
+  if (!file)                                 { status.textContent = 'Select a PDF file.'; return; }
+
+  btn.disabled = true;
+  status.style.color = '#555';
+  status.textContent = 'Reading file…';
+
+  try {
+    var bytes = new Uint8Array(await file.arrayBuffer());
+    var b64   = uint8ToB64(bytes);
+
+    status.textContent = 'Uploading…';
+
+    var apiUrl = GH_REPO_API + 'CRT/templates/' + encodeURIComponent(version) + '.pdf';
+
+    // Fetch existing SHA if the version already exists (needed to overwrite)
+    var existingSha = null;
+    var checkRes = await fetch(apiUrl, { headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' } });
+    if (checkRes.ok) existingSha = (await checkRes.json()).sha;
+
+    var body = { message: 'Upload CRT template ' + version, content: b64 };
+    if (existingSha) body.sha = existingSha;
+
+    var res = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      var err = await res.json().catch(function(){ return {}; });
+      throw new Error(err.message || 'HTTP ' + res.status);
+    }
+
+    status.textContent = '✓ Uploaded “' + version + '” successfully.';
+    status.style.color = '#0F6E56';
+    versionInput.value = '';
+    fileInput.value = '';
+    document.getElementById('tmplFileName').textContent = 'Choose PDF…';
+    delete templateCache[version];
+    renderTemplateManager();
+  } catch(e) {
+    status.textContent = 'Upload failed: ' + e.message;
+    status.style.color = '#c00';
+  }
+  btn.disabled = false;
 }
 
 crtHydratePromise = crtBootstrapStorage();
