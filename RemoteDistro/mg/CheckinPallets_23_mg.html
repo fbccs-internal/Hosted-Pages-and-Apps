@@ -1,0 +1,2042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Food Bank Distribution</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root {
+--navy:#2D1B69; --blue:#6D28D9; --blue-light:#DDD6FE; --blue-pale:#EDE9FE;
+--amber:#C47A1E; --amber-light:#FEF3DC;
+--green:#1A6E42; --green-light:#D5F0E2;
+--red:#922B21; --teal:#0E7490; --teal-light:#CFFAFE;
+--purple:#5B21B6; --purple-light:#EDE9FE;
+--gray-50:#F8F9FA; --gray-100:#F1F3F4; --gray-200:#E8EAED;
+--gray-300:#DADCE0; --gray-500:#9AA0A6; --gray-700:#5F6368; --gray-900:#202124;
+--white:#FFFFFF;
+--r-sm:6px; --r-md:10px; --r-lg:16px;
+--sidebar-w:230px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray-900);}
+#app{display:flex;height:100vh;overflow:hidden;}
+
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--navy);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar-header{padding:20px 16px 10px;}
+#sidebar-logo{color:white;font-size:16px;font-weight:700;margin-bottom:2px;}
+#sidebar-sub{color:rgba(255,255,255,0.4);font-size:11px;font-family:'DM Mono',monospace;}
+#sidebar-sync{font-size:11px;font-family:'DM Mono',monospace;padding:0 16px 8px;min-height:18px;transition:color 0.3s;}
+#sidebar-dist-section{flex:1;overflow-y:auto;padding-bottom:8px;}
+.sidebar-section-label{font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);letter-spacing:0.1em;text-transform:uppercase;padding:8px 16px 4px;}
+.sidebar-dist-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border-left:3px solid transparent;transition:background 0.1s;position:relative;}
+.sidebar-dist-item:hover{background:rgba(255,255,255,0.07);}
+.sidebar-dist-item.active-view{background:rgba(255,255,255,0.12);border-left-color:#DDD6FE;}
+.sdi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sdi-info{flex:1;min-width:0;}
+.sdi-name{color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sdi-status{font-size:10px;margin-top:1px;}
+#sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:8px;}
+.sfooter-btn{width:100%;padding:9px 12px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background 0.15s;}
+#btn-new-dist{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);color:white;}
+#btn-new-dist:hover{background:rgba(255,255,255,0.2);}
+#btn-item-library{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
+#btn-item-library:hover{background:rgba(255,255,255,0.08);}
+#btn-reports{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
+#btn-reports:hover{background:rgba(255,255,255,0.08);}
+#btn-master-agencies{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
+#btn-master-agencies:hover{background:rgba(255,255,255,0.08);}
+
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#topbar{background:var(--white);border-bottom:1px solid var(--gray-200);flex-shrink:0;padding:0 24px;display:flex;align-items:center;gap:12px;height:56px;box-shadow:0 1px 4px rgba(0,0,0,0.05);}
+#t-title{font-size:17px;font-weight:600;flex:1;}
+#t-sub{color:var(--gray-500);font-size:12px;font-family:'DM Mono',monospace;}
+
+/* ACTIVE BANNER */
+
+/* HOME */
+#screen-home{padding:32px 24px;}
+.empty-icon{font-size:40px;margin-bottom:12px;}
+.empty-title{font-size:18px;font-weight:600;color:var(--gray-700);margin-bottom:6px;}
+
+/* DIST VIEW */
+#screen-dist{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#dist-subnav{display:flex;border-bottom:1px solid var(--gray-200);background:var(--white);flex-shrink:0;padding:0 24px;}
+.tab-btn{padding:14px 18px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--gray-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s;display:flex;align-items:center;gap:6px;}
+.tab-btn:hover{color:var(--gray-900);}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--navy) 0%,#3b1fa8 100%);padding:16px 24px 20px;flex-shrink:0;}
+.hero-label{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.45);margin-bottom:3px;letter-spacing:0.06em;}
+.hero-name{font-size:18px;font-weight:600;color:white;margin-bottom:10px;display:flex;align-items:center;gap:10px;}
+.hero-grid{display:flex;gap:10px;}
+.hstat{background:rgba(255,255,255,0.1);border-radius:var(--r-md);padding:8px 16px;text-align:center;min-width:90px;}
+.hstat-val{font-size:20px;font-weight:600;color:white;}
+.hstat-lbl{font-size:9px;color:rgba(255,255,255,0.5);margin-top:2px;font-weight:500;}
+
+/* SCROLL + SCREENS */
+#scroll-area{flex:1;overflow-y:auto;padding:20px 24px 100px;}
+.screen{display:none;}
+.screen.active{display:block;}
+/* Sticky toolbar (pinned action button at top of a scrolling tab) */
+.sticky-toolbar{position:sticky;top:0;z-index:5;background:var(--gray-50);margin:-20px -24px 0;padding:20px 24px 16px;}
+.section-hdr{font-size:11px;font-weight:600;color:var(--gray-500);letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.card-pad{padding:16px 18px;}
+.row-item{display:flex;align-items:flex-start;gap:12px;padding:12px 18px;border-bottom:1px solid var(--gray-100);}
+.row-item:last-child{border-bottom:none;}
+.row-main{flex:1;min-width:0;}
+.row-name{font-size:14px;font-weight:500;}
+.row-sub{font-size:12px;color:var(--gray-500);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+
+/* BADGES */
+.badge{font-size:11px;font-weight:600;padding:2px 9px;border-radius:100px;white-space:nowrap;flex-shrink:0;}
+.b-in{background:var(--green-light);color:var(--green);}
+.b-out{background:var(--gray-100);color:var(--gray-700);}
+.b-done{background:var(--green-light);color:var(--green);}
+.b-cases{background:var(--blue-pale);color:var(--blue);}
+.b-bin{background:var(--teal-light);color:var(--teal);}
+.b-order{background:var(--purple-light);color:var(--purple);cursor:pointer;}
+.b-noorder{background:var(--gray-100);color:var(--gray-500);cursor:pointer;}
+
+/* CHECK CIRCLE */
+.chk{width:32px;height:32px;border-radius:50%;border:2px solid var(--gray-300);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent;flex-shrink:0;transition:all 0.15s;margin-top:2px;}
+.chk.on{background:var(--green);border-color:var(--green);color:white;}
+
+/* PALLET ACCORDION */
+.pacc{margin-bottom:10px;border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.pacc-head{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--white);cursor:pointer;user-select:none;}
+.pacc-head:hover{background:var(--gray-50);}
+.pnum{width:32px;height:32px;border-radius:50%;background:var(--navy);color:white;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+.pnum.done{background:var(--green);}
+.pacc-info{flex:1;min-width:0;}
+.pacc-title{font-size:14px;font-weight:600;}
+.pacc-sub{font-size:12px;color:var(--gray-500);margin-top:2px;}
+.pchev{font-size:18px;color:var(--gray-500);transition:transform 0.2s;flex-shrink:0;}
+.pchev.open{transform:rotate(90deg);}
+.pacc-body{display:none;background:var(--gray-50);border-top:1px solid var(--gray-200);}
+.pacc-body.open{display:block;}
+.alloc-box{background:var(--blue-pale);border-radius:var(--r-md);padding:14px 18px;margin:14px 18px;text-align:center;}
+.alloc-val{font-size:36px;font-weight:600;color:var(--blue);}
+.alloc-lbl{font-size:12px;color:var(--gray-500);margin-top:4px;font-weight:500;}
+.pick-row{display:flex;align-items:center;gap:8px;padding:9px 18px;border-bottom:1px solid var(--gray-100);font-size:13px;}
+.pick-row:last-child{border-bottom:none;}
+.pick-n{width:24px;height:24px;border-radius:50%;background:var(--gray-200);color:var(--gray-700);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+
+/* LOTTERY */
+.lballs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0;min-height:52px;}
+.lball{width:44px;height:44px;border-radius:50%;background:var(--navy);color:white;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;animation:popIn 0.25s cubic-bezier(0.34,1.56,0.64,1) both;}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:11px 16px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-900);transition:all 0.1s;}
+.btn:hover{background:var(--gray-50);}
+.btn:active{transform:scale(0.99);}
+.btn-primary{background:var(--blue);color:white;border-color:var(--blue);}
+.btn-primary:hover{background:#7c3aed;}
+.btn-navy{background:var(--navy);color:white;border-color:var(--navy);}
+.btn-green{background:var(--green);color:white;border-color:var(--green);}
+.btn-danger{background:var(--red);color:white;border-color:var(--red);}
+.btn-sm{padding:7px 14px;font-size:13px;}
+.btn-row{display:flex;gap:8px;}.btn-row .btn{flex:1;}
+
+/* FORM */
+.field{margin-bottom:14px;}
+.flabel{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:5px;letter-spacing:0.02em;}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:10px 13px;border:1px solid var(--gray-300);border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--gray-900);background:var(--white);outline:none;transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none;}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(109,40,217,0.12);}
+.irow{display:flex;gap:8px;}.irow>*{flex:1;}
+.seg{display:flex;border:1px solid var(--gray-300);border-radius:var(--r-md);overflow:hidden;}
+.seg-btn{flex:1;padding:9px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--gray-500);}
+.seg-btn+.seg-btn{border-left:1px solid var(--gray-300);}
+.seg-btn.active{background:var(--navy);color:white;}
+.hint{font-size:12px;color:var(--gray-500);margin-top:4px;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:none;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--white);border-radius:var(--r-lg);width:100%;max-width:440px;max-height:90vh;overflow-y:auto;padding:24px;animation:fadeIn 0.2s ease;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+@keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:none}}
+.modal-title{font-size:18px;font-weight:600;margin-bottom:18px;}
+.mclose{position:absolute;right:16px;top:16px;background:var(--gray-100);border:none;border-radius:50%;width:30px;height:30px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray-700);}
+.mclose:hover{background:var(--gray-200);}
+
+/* PRINT STYLES */
+@media print {
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  #app{display:block;height:auto;}
+  #sidebar,#topbar,#dist-subnav,#tab-orderform,#tab-checkin,#tab-lottery,#tab-pallets,#tab-settings{display:none!important;}
+  body.of-printing #app{display:none!important;}
+  body.of-printing #of-printView{display:block!important;}
+  .overlay{display:none!important;}
+  #main,#screen-dist,#scroll-area{overflow:visible!important;height:auto!important;display:block!important;}
+  #screen-dist{display:block!important;}
+  #tab-pallets,#tab-checkin{display:none!important;}
+  body{overflow:auto;height:auto;}
+  .screen{display:none!important;}
+  #print-report{display:block!important;padding:0;margin:0;}
+  .pr-section{page-break-inside:avoid;}
+  .pr-table{width:100%;border-collapse:collapse;margin-bottom:0;}
+  .pr-table th{background:#2D1B69!important;color:white!important;padding:8px 12px;text-align:left;font-size:12px;}
+  .pr-table td{padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;}
+  .pr-table tr:nth-child(even) td{background:#F8F9FA!important;}
+  .pr-header{background:#2D1B69!important;color:white!important;-webkit-print-color-adjust:exact!important;}
+  h3.pr-section-title{page-break-before:auto;margin-top:20px;}
+  table{page-break-inside:auto;}
+  tr{page-break-inside:avoid;page-break-after:auto;}
+}
+#print-report{display:none;}
+
+/* ORDER FORM TAB (scoped from Distribution Order Form) */
+#tab-orderform .top-actions{display:flex;align-items:center;gap:1rem;margin-bottom:16px;flex-wrap:wrap;}
+#tab-orderform .action-group{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-right:12px;border-right:1px solid var(--gray-200);}
+#tab-orderform .action-group:last-of-type{border-right:none;padding-right:0;}
+#tab-orderform .form-section{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--gray-200);padding:18px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+#tab-orderform .form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:16px;}
+#tab-orderform .form-group{display:flex;flex-direction:column;}
+#tab-orderform .form-group label{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.04em;}
+#tab-orderform .order-number-display{padding:10px 13px;font-size:14px;border:1px solid var(--gray-300);border-radius:var(--r-md);background:var(--gray-50);font-weight:600;color:var(--blue);width:100%;}
+#tab-orderform .helper-text{font-size:12px;color:var(--gray-500);margin-top:4px;}
+#tab-orderform .items-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;}
+#tab-orderform .items-header h2{font-size:15px;font-weight:600;}
+#tab-orderform .btn-secondary{background:var(--white);color:var(--blue);border:1px solid var(--blue);padding:7px 12px;font-size:13px;font-weight:600;border-radius:var(--r-sm);cursor:pointer;font-family:'DM Sans',sans-serif;}
+#tab-orderform .btn-secondary:hover{background:var(--blue-pale);}
+#tab-orderform select.btn-secondary{padding:6px 10px;}
+#tab-orderform .btn-danger{background:var(--red);color:white;border:none;padding:5px 10px;font-size:12px;border-radius:var(--r-sm);cursor:pointer;}
+#tab-orderform .import-status{font-size:12px;color:var(--gray-500);}
+#tab-orderform .import-status.error{color:var(--red);}
+#tab-orderform .import-status.success{color:var(--green);}
+#tab-orderform .table-scroll{overflow-x:auto;border-radius:var(--r-sm);}
+#tab-orderform table{width:100%;min-width:700px;table-layout:fixed;border-collapse:collapse;font-size:13px;}
+#tab-orderform th{text-align:left;padding:8px 10px;background:var(--gray-100);border-bottom:1px solid var(--gray-200);font-size:11px;font-weight:600;color:var(--gray-700);text-transform:uppercase;}
+#tab-orderform td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:top;}
+#tab-orderform .table-input{width:100%;padding:6px 8px;border:1px solid var(--gray-300);border-radius:var(--r-sm);font-size:13px;font-family:'DM Sans',sans-serif;}
+#tab-orderform .table-input:focus{border-color:var(--blue);outline:none;box-shadow:0 0 0 2px rgba(109,40,217,0.12);}
+#tab-orderform .duplicate-item-row{background:#fff8e6;}
+#tab-orderform .duplicate-item-row .item-num-input{border-color:#f57c00;}
+#tab-orderform .items-summary{margin-top:10px;padding:8px 12px;background:var(--blue-pale);border:1px solid var(--blue-light);border-radius:var(--r-sm);font-size:13px;}
+#tab-orderform .empty-state{text-align:center;padding:24px;color:var(--gray-500);}
+#tab-orderform .integration-note{margin-top:16px;padding:10px 12px;background:var(--gray-50);border-left:3px solid var(--gray-300);border-radius:var(--r-sm);font-size:12px;color:var(--gray-700);}
+#tab-orderform .print-control-group{display:flex;align-items:stretch;}
+#tab-orderform .print-orientation-toggle,#tab-orderform .print-orientation-select{font-size:11px;padding:0 6px;border:1px solid var(--blue);background:white;color:var(--blue);cursor:pointer;}
+#tab-orderform .btn-print{background:var(--blue);color:white;border:none;padding:7px 12px;font-size:13px;border-radius:0 var(--r-sm) var(--r-sm) 0;cursor:pointer;}
+#of-printView{position:fixed;inset:0;z-index:150;background:var(--gray-50);overflow-y:auto;padding:24px;display:none;}
+#of-printView.open{display:block;}
+#of-printView .back-button{background:var(--gray-200);color:var(--gray-900);border:none;padding:10px 16px;border-radius:var(--r-sm);cursor:pointer;margin-top:16px;font-family:'DM Sans',sans-serif;}
+#of-undoToast.undo-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2c2c2c;color:white;padding:12px 16px;border-radius:var(--r-sm);display:flex;align-items:center;gap:16px;font-size:14px;box-shadow:0 2px 10px rgba(0,0,0,0.25);z-index:160;}
+#of-undoToast.undo-toast button{background:none;border:none;color:#6db3ff;font-weight:600;cursor:pointer;}
+@media print{
+  body.of-printing *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body.of-printing #of-printView{position:static;display:block!important;padding:0;background:white;}
+  body.of-printing #of-printBackWrap{display:none!important;}
+  #of-printView .print-preview{padding:0;margin:0;border:none;}
+  #of-printView .print-header{text-align:center;margin-bottom:0;}
+  #of-printView .print-header h1{font-size:22px;font-weight:bold;}
+  #of-printView .print-table{width:100%;border-collapse:collapse;font-size:14px;}
+  #of-printView .print-table th,#of-printView .print-table td{border:0.5px solid #999;padding:3px 4px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="sidebar-logo">🍎 Food Bank</div>
+      <div id="sidebar-sub">Distribution Manager</div>
+    </div>
+    <div id="sidebar-sync"></div>
+    <div id="sidebar-dist-section">
+      <div class="sidebar-section-label">Distributions</div>
+      <div id="sidebar-dist-list"></div>
+    </div>
+    <div id="sidebar-footer">
+      <button id="btn-new-dist" class="sfooter-btn" onclick="openManageDists()">⚙ Manage Distributions</button>
+      <button id="btn-master-agencies" class="sfooter-btn" onclick="openMasterAgencies()">👥 Manage Agencies</button>
+      <button id="btn-item-library" class="sfooter-btn" onclick="openItemLibrary()">📋 Item Library</button>
+      <button id="btn-reports" class="sfooter-btn" onclick="openReportsList()">🗂 Reports</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <div style="flex:1;">
+        <div id="t-title">Food Bank</div>
+        <div id="t-sub">Select a distribution</div>
+      </div>
+      <div id="t-actions"></div>
+    </div>
+    <!-- HOME -->
+    <div id="screen-home" class="screen active" style="padding:32px 24px;text-align:center;">
+      <div style="padding:80px 24px;color:var(--gray-500);">
+        <div class="empty-icon">📦</div>
+        <div class="empty-title">No distribution selected</div>
+        <div style="font-size:14px;">Choose one from the sidebar or create a new one.</div>
+      </div>
+    </div>
+
+    <!-- DIST VIEW -->
+    <div id="screen-dist" class="screen" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div id="dist-hero" class="hero"></div>
+      <div id="dist-subnav">
+        <button class="tab-btn" id="nav-orderform" onclick="switchTab('orderform',this)">📋 Order Form</button>
+        <button class="tab-btn active" id="nav-checkin" onclick="switchTab('checkin',this)">✅ Check-in</button>
+        <button class="tab-btn" id="nav-lottery" onclick="switchTab('lottery',this)">🎲 Lottery</button>
+        <button class="tab-btn" id="nav-pallets" onclick="switchTab('pallets',this)">📦 Pallets</button>
+        <button class="tab-btn" id="nav-settings" onclick="switchTab('settings',this)">⚙️ Settings</button>
+      </div>
+      <div id="tab-action-bar" style="display:none;padding:12px 24px;background:var(--white);border-bottom:1px solid var(--gray-200);flex-shrink:0;">
+        <button class="btn btn-primary" style="max-width:200px;" onclick="openAddPallet()">+ Add Pallet</button>
+      </div>
+      <div id="scroll-area">
+
+        <!-- ORDER FORM -->
+        <div id="tab-orderform" class="screen">
+          <div class="sticky-toolbar">
+            <div class="section-hdr" style="margin-bottom:12px;">Order Form <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400;">Optional prep step — send items to Pallets when ready</span></div>
+            <div class="btn-row" style="max-width:520px;">
+              <button class="btn btn-primary btn-sm" onclick="confirmSendToPallets()">➡ Send to Pallets</button>
+            </div>
+          </div>
+          <div id="of-editingView">
+            <div class="top-actions">
+              <div class="action-group">
+                <button class="btn-secondary" onclick="document.getElementById('of-importFileInput').click()">📥 Import from Excel</button>
+                <input type="file" id="of-importFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="OrderForm.importFromExcel(event)">
+                <button class="btn-secondary" onclick="OrderForm.exportToExcel()">📤 Export to Excel</button>
+              </div>
+              <div class="action-group">
+                <select id="of-moreActionsMenu" class="btn-secondary" onchange="OrderForm.handleMoreActionsMenu(this.value)">
+                  <option value="">⋯ More actions</option>
+                  <option value="downloadAll">📊 Download All Orders</option>
+                  <option value="printSaved">🖨 Print Saved Orders</option>
+                  <option value="clearSaved">🗑 Clear Saved Orders</option>
+                </select>
+                <span class="import-status" id="of-importStatus"></span>
+              </div>
+            </div>
+            <div id="of-exportReminderBanner" style="display:none;align-items:center;justify-content:space-between;gap:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;">
+              <span id="of-exportReminderText"></span>
+              <button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="OrderForm.exportLogToExcel()">📊 Download Now</button>
+            </div>
+            <div id="of-savedOrdersPanel" style="display:none;margin-bottom:12px;padding:14px;background:var(--white);border:1px solid var(--gray-200);border-radius:var(--r-lg);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                <strong style="font-size:14px;">Saved Orders</strong>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="OrderForm.selectSavedOrdersForCurrentDate()">Select this date</button>
+                  <button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="OrderForm.selectAllSavedOrders(true)">Select all</button>
+                  <button type="button" class="btn-secondary" style="padding:6px 10px;font-size:12px;" onclick="OrderForm.selectAllSavedOrders(false)">Select none</button>
+                </div>
+              </div>
+              <div id="of-savedOrdersList" style="max-height:220px;overflow-y:auto;border:1px solid var(--gray-200);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:10px;"></div>
+              <button type="button" class="btn btn-primary btn-sm" style="max-width:320px;" onclick="OrderForm.printSelectedSavedOrders()">🖨 Print Selected (each on its own sheet)</button>
+            </div>
+            <div class="form-section">
+              <div class="form-row">
+                <div class="form-group" style="grid-column:1/-1;">
+                  <label for="of-scheduleSelect">Scheduled Order (optional)</label>
+                  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <select id="of-scheduleSelect" onchange="OrderForm.handleScheduleSelect(this.value)" style="flex:1;min-width:260px;">
+                      <option value="">Select a scheduled order...</option>
+                    </select>
+                    <button class="btn-secondary" onclick="document.getElementById('of-scheduleFileInput').click()">📥 Import Schedule</button>
+                    <input type="file" id="of-scheduleFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="OrderForm.importSchedule(event)">
+                  </div>
+                  <div class="helper-text">Shows orders for the distribution date below. Picking one loads location, order number, and saved items if any.</div>
+                  <span class="import-status" id="of-scheduleImportStatus"></span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                    <label for="of-location" style="margin-bottom:0;">Location</label>
+                    <button type="button" class="btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="OrderForm.showAddLocationPanel()">+ Add Location</button>
+                  </div>
+                  <input type="text" id="of-location" class="order-number-display" readonly style="cursor:default;" placeholder="From schedule or distribution mapping">
+                  <div id="of-addLocationPanel" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--blue);border-radius:var(--r-sm);background:var(--blue-pale);">
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                      <input type="text" id="of-newLocationName" placeholder="Name (e.g. Perish Dist: City)" class="table-input">
+                      <input type="text" id="of-newLocationCode" placeholder="Code (e.g. PEDI-X0000)" class="table-input">
+                      <div style="display:flex;gap:6px;">
+                        <button type="button" class="btn btn-primary btn-sm" style="flex:1;" onclick="OrderForm.confirmAddLocation()">Add</button>
+                        <button type="button" class="btn-secondary" style="flex:1;" onclick="OrderForm.cancelAddLocation()">Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="of-date">Date</label>
+                  <input type="date" id="of-date" style="max-width:160px;">
+                </div>
+                <div class="form-group">
+                  <label for="of-orderNumber">Order Number</label>
+                  <input type="text" class="order-number-display" id="of-orderNumber" placeholder="Auto-fetched, or enter manually" onchange="OrderForm.handleOrderNumberChange(this.value)">
+                  <div class="helper-text" id="of-orderNumberHelperText">Auto-generated placeholder for now, or type your own</div>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="grid-column:1/-1;">
+                  <div class="items-header">
+                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
+                      <h2>Items</h2>
+                      <button class="btn btn-primary btn-sm" onclick="OrderForm.addItem()" style="padding:4px 10px;">+ Add item</button>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                      <button class="btn-secondary" onclick="OrderForm.copyItemsToClipboard()">📋 Copy Items</button>
+                      <button class="btn-secondary" onclick="OrderForm.pasteItemsFromClipboard()">📋 Paste Items</button>
+                      <button class="btn-secondary" onclick="OrderForm.clearItemsManually()">🗑 Clear Items</button>
+                      <button class="btn btn-primary btn-sm" onclick="OrderForm.saveCurrentOrder()">💾 Save</button>
+                      <div class="print-control-group">
+                        <button type="button" class="print-orientation-toggle" onclick="OrderForm.toggleOrientationSelect()" title="Choose print orientation">▾</button>
+                        <select id="of-printOrientationSelect" class="print-orientation-select" style="display:none;" onchange="OrderForm.setPrintOrientation(this.value)">
+                          <option value="portrait" selected>Portrait</option>
+                          <option value="landscape">Landscape</option>
+                        </select>
+                        <button class="btn-print" onclick="OrderForm.showPrintPreview()">🖨 Print hard copy</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="of-itemsContainer"><div class="empty-state">No items added yet. Click "Add item" to get started.</div></div>
+                  <datalist id="of-produceNumList"></datalist>
+                  <datalist id="of-produceDescList"></datalist>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHECK-IN -->
+        <div id="tab-checkin" class="screen active">
+          <div class="section-hdr">Agencies <span id="ci-badge" style="background:var(--green-light);color:var(--green);padding:2px 10px;border-radius:100px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;"></span>
+            <span id="ci-hidden-toggle" onclick="toggleShowHidden()" style="cursor:pointer;font-size:11px;font-weight:600;color:var(--blue);text-transform:none;letter-spacing:0;"></span>
+          </div>
+          <div class="card" id="ci-list"></div>
+        </div>
+
+        <!-- LOTTERY -->
+        <div id="tab-lottery" class="screen">
+          <button class="btn btn-navy" style="max-width:240px;margin-bottom:16px;" onclick="runLottery()">🎲 Draw Pick Order</button>
+          <div id="lottery-result"></div>
+        </div>
+
+        <!-- PALLETS -->
+        <div id="tab-pallets" class="screen">
+          <div id="pallet-list"></div>
+        </div>
+
+        <!-- SETTINGS -->
+        <div id="tab-settings" class="screen">
+          <div style="max-width:480px;">
+            <div class="card card-pad" style="margin-bottom:14px;">
+              <div class="field"><div class="flabel">Distribution Name</div><input type="text" id="s-name" oninput="autoSave()"></div>
+              <div class="field"><div class="flabel">Distribution Date</div><input type="date" id="s-date" oninput="autoSave()">
+                <div id="s-date-mismatch" style="display:none;font-size:12px;color:#92400e;margin-top:4px;"></div>
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <div class="flabel">Notes</div>
+                <textarea id="s-notes" rows="3" oninput="autoSave()" style="resize:vertical;" placeholder="Optional notes about this distribution..."></textarea>
+              </div>
+            </div>
+            <div class="card card-pad" style="margin-bottom:14px;border-color:#fde68a;background:#fffbeb;">
+              <div class="flabel" style="margin-bottom:6px;color:#92400e;">🔒 Close Week</div>
+              <div style="font-size:13px;color:#78350f;margin-bottom:12px;">Closes this week's distribution. Clears check-ins, lottery, orders and pallets — keeps agencies and groups for next time.</div>
+              <button class="btn btn-sm" style="max-width:220px;border-color:#d97706;color:#92400e;background:white;" onclick="confirmCloseWeek()">Close This Week</button>
+            </div>
+            <div style="display:flex;gap:8px;max-width:480px;">
+              <button class="btn" onclick="printReport()">🖨️ Print Report</button>
+              <button class="btn btn-danger" style="max-width:160px;" onclick="confirmDelete()">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRINT REPORT (hidden, shown only on print) -->
+        <div id="print-report"></div>
+
+      </div><!-- /scroll-area -->
+    </div><!-- /screen-dist -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<div id="of-printView">
+  <div class="print-preview" id="of-printContent"></div>
+  <div id="of-printBackWrap" style="text-align:center;">
+    <button class="back-button" onclick="OrderForm.hidePrintPreview()">Back to editing</button>
+  </div>
+</div>
+<div id="of-undoToast" class="undo-toast" style="display:none;">
+  <span id="of-undoToastMessage"></span>
+  <button type="button" onclick="OrderForm.handleUndoToastClick()">Undo</button>
+</div>
+
+<!-- MANAGE DISTRIBUTIONS MODAL -->
+<div class="overlay" id="m-manage-dists">
+  <div class="modal" style="max-width:500px;">
+    <button class="mclose" onclick="closeModal('m-manage-dists')">×</button>
+    <div class="modal-title">Manage Distributions</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Add all your distribution sites here. They'll appear in the sidebar and you can set which one is active each week.</p>
+    <div id="mgr-dist-list" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="flex:1;"><div class="flabel">Distribution Name</div><input type="text" id="mgr-new-name" placeholder="e.g. Site A — North Campus" onkeydown="if(event.key==='Enter')addManagedDist()"></div>
+      <button class="btn btn-primary btn-sm" style="width:auto;flex-shrink:0;padding:10px 16px;" onclick="addManagedDist()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANAGE AGENCIES MODAL (per distribution — assignment view) -->
+<div class="overlay" id="m-manage-agencies">
+  <div class="modal" style="max-width:520px;">
+    <button class="mclose" onclick="closeModal('m-manage-agencies')">×</button>
+    <div class="modal-title">Agencies</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:4px;">Agencies currently assigned to <strong id="ma-dist-name"></strong>. Edit an agency to move it to a different distribution.</p>
+    <div id="ma-list" style="margin:16px 0;"></div>
+    <div style="border-top:1px solid var(--gray-200);padding-top:14px;">
+      <button class="btn btn-sm" style="max-width:220px;" onclick="closeModal('m-manage-agencies');openMasterAgenciesForDist(mgrAgencyDistId)">+ Add a new agency here</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PALLET MODAL -->
+<div class="overlay" id="m-add-pallet" style="align-items:flex-start;padding-top:40px;">
+  <div class="modal" style="max-height:80vh;">
+    <button class="mclose" onclick="closeModal('m-add-pallet')">×</button>
+    <div class="modal-title" id="ap-modal-title">Add Pallet</div>
+    <div class="field">
+      <div class="flabel">Quick-fill from library</div>
+      <select id="ap-preset" onchange="applyPreset()">
+        <option value="">— choose an item —</option>
+      </select>
+    </div>
+    <div class="field"><div class="flabel">Material # <span style="font-weight:400;color:var(--gray-500);">(required)</span></div><input type="text" id="ap-matnum" placeholder="e.g. 110234"></div>
+    <div class="field"><div class="flabel">Description</div><input type="text" id="ap-desc" placeholder="e.g. Canned Vegetables"></div>
+    <div class="field">
+      <div class="flabel">Type</div>
+      <div class="seg" style="margin-top:6px">
+        <button class="seg-btn active" id="ap-cases" onclick="setPType('cases')">Cases</button>
+        <button class="seg-btn" id="ap-bin" onclick="setPType('bin')">Bin (weight)</button>
+      </div>
+    </div>
+    <div id="cases-sec">
+      <div class="field" style="margin-bottom:0;"><div class="flabel">Case Count</div><input type="number" id="ap-manual" placeholder="e.g. 48" min="0"></div>
+    </div>
+    <div id="bin-sec" style="display:none">
+      <div class="field"><div class="flabel">Total Weight (lbs)</div><input type="number" id="ap-wt" placeholder="e.g. 320" min="0"></div>
+      <div class="field"><div class="flabel">Avg Unit Weight (lbs)</div><input type="number" id="ap-uwt" placeholder="e.g. 1.5" min="0" step="0.01"><div class="hint">Units = total weight ÷ avg unit weight</div></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="addPallet()">Add Pallet</button>
+  </div>
+</div>
+
+<!-- ITEM LIBRARY MODAL -->
+<div class="overlay" id="m-item-library">
+  <div class="modal" style="max-width:500px;">
+    <button class="mclose" onclick="closeModal('m-item-library')">×</button>
+    <div class="modal-title">Item Library</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">These items appear as quick-fill options when adding pallets. Material # is required for new items — it's what feeds the allocation reports.</p>
+    <div id="lib-list" style="margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div style="width:130px;"><div class="flabel">Material #</div><input type="text" id="lib-new-matnum" placeholder="e.g. 110234"></div>
+      <div style="flex:1;"><div class="flabel">New Item Name</div><input type="text" id="lib-new-name" placeholder="e.g. Canned Vegetables" onkeydown="if(event.key==='Enter')addLibItem()"></div>
+      <button class="btn btn-primary btn-sm" style="width:auto;flex-shrink:0;padding:10px 16px;" onclick="addLibItem()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPORTS LIST MODAL -->
+<div class="overlay" id="m-reports-list">
+  <div class="modal" style="max-width:520px;">
+    <button class="mclose" onclick="closeModal('m-reports-list')">×</button>
+    <div class="modal-title">Reports</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Every closed week automatically saves a report here, in addition to the file downloaded at close time.</p>
+    <div id="reports-list"></div>
+  </div>
+</div>
+
+<!-- MASTER AGENCIES MODAL -->
+<div class="overlay" id="m-master-agencies">
+  <div class="modal" style="max-width:560px;">
+    <button class="mclose" onclick="closeModal('m-master-agencies')">×</button>
+    <div class="modal-title">Manage Agencies</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">Every agency, in one place. Add, edit, or remove them here — use Manage Distributions to just see who's assigned where.</p>
+    <div id="mag-list" style="margin-bottom:16px;max-height:340px;overflow-y:auto;"></div>
+    <div style="border-top:1px solid var(--gray-200);padding-top:16px;">
+      <div class="flabel" style="margin-bottom:8px;">Add Agency</div>
+      <div class="field" style="margin-bottom:8px;"><input type="text" id="mag-num" placeholder="Agency # (e.g. A-042)"></div>
+      <div class="field" style="margin-bottom:8px;"><input type="text" id="mag-name" placeholder="Agency name"></div>
+      <div class="field" style="margin-bottom:8px;"><input type="text" id="mag-group" placeholder="Pickup group (optional)"></div>
+      <div class="field" style="margin-bottom:10px;">
+        <div class="flabel">Distribution</div>
+        <select id="mag-dist"></select>
+      </div>
+      <button class="btn btn-primary btn-sm" style="max-width:170px;" onclick="addMasterAgency()">+ Add Agency</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT AGENCY MODAL -->
+<div class="overlay" id="m-edit-agency">
+  <div class="modal" style="max-width:400px;">
+    <button class="mclose" onclick="closeModal('m-edit-agency')">×</button>
+    <div class="modal-title">Edit Agency</div>
+    <div class="field"><div class="flabel">Agency Number</div><input type="text" id="ea-num" placeholder="e.g. A-042"></div>
+    <div class="field"><div class="flabel">Agency Name</div><input type="text" id="ea-name" placeholder="Enter agency name"></div>
+    <div class="field">
+      <div class="flabel">Pickup Group <span style="font-weight:400;color:var(--gray-500);">(optional)</span></div>
+      <input type="text" id="ea-group" placeholder="e.g. Group A" list="ea-group-list" autocomplete="off">
+      <datalist id="ea-group-list"></datalist>
+      <div class="hint">Leave blank to remove from any group. Existing group names appear as suggestions.</div>
+    </div>
+    <div class="field">
+      <div class="flabel">Distribution</div>
+      <select id="ea-dist"></select>
+      <div class="hint">Moving to a different distribution drops this week's check-in/order status here — it doesn't carry over.</div>
+    </div>
+    <div class="field" style="margin-bottom:0;display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="ea-hidden" style="width:auto;">
+      <label for="ea-hidden" style="font-size:13px;color:var(--gray-700);">Hide from default check-in list <span style="color:var(--gray-500);">(still counted &amp; eligible — just out of the way)</span></label>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" id="ea-save">Save</button>
+      <button class="btn" onclick="closeModal('m-edit-agency')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PALLET QTY MODAL -->
+<div class="overlay" id="m-edit-pallet">
+  <div class="modal" style="max-width:360px;">
+    <button class="mclose" onclick="closeModal('m-edit-pallet')">×</button>
+    <div class="modal-title">Edit Quantity</div>
+    <div style="font-size:13px;color:var(--gray-700);margin-bottom:14px;">Pallet: <strong id="ep-desc"></strong></div>
+    <div class="field" style="margin-bottom:0;">
+      <div class="flabel">New Quantity</div>
+      <input type="number" id="ep-qty" min="0" step="0.01" placeholder="e.g. 48">
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" id="ep-save">Save</button>
+      <button class="btn" onclick="closeModal('m-edit-pallet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="overlay" id="m-confirm">
+  <div class="modal">
+    <div class="modal-title" id="conf-title">Are you sure?</div>
+    <div id="conf-msg" style="font-size:14px;color:var(--gray-700);margin-bottom:20px"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="closeModal('m-confirm')">Cancel</button>
+      <button class="btn btn-danger" id="conf-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const Shared={
+  uid(){return Date.now()+Math.random().toString(36).slice(2,6);},
+  toISODate(dt){const y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),day=String(dt.getDate()).padStart(2,'0');return `${y}-${m}-${day}`;},
+  todayStr(){return Shared.toISODate(new Date());},
+  fmtDateShort(iso){
+    if(!iso)return '';
+    const parts=iso.split('-');if(parts.length!==3)return '';
+    return `${parseInt(parts[1],10)}/${parseInt(parts[2],10)}`;
+  },
+  escapeHtml(str){
+    return String(str==null?'':str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+};
+const STRIPES=['#6D28D9','#C47A1E','#0E7490','#1A6E42','#922B21','#1A5E8F','#7C3AED','#B45309','#0F766E','#15803D','#B91C1C','#1D4ED8'];
+const GH_TOKEN='github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
+const GH_API='https://api.github.com/repos/fbccs-internal/publicappdata/contents/CheckinPallets/data.json';
+
+// One-time seed data used only during the v1→v2 migration, to backfill agencies for
+// distributions that either didn't exist yet or whose old per-distribution agency lists
+// were incomplete. See migrateDb().
+const SEED_AGENCIES=[
+{distName:'Vallejo Monday',num:'ASHC-S1001',name:'Amador St Hope Center Pantry'},
+{distName:'Vallejo Monday',num:'BCAC-S1001',name:'Benicia C.A.C.'},
+{distName:'Vallejo Monday',num:'BRCC-S1001',name:'Bridgeway Church'},
+{distName:'Vallejo Monday',num:'CSUM-S1001',name:'CSU Maritime Academy'},
+{distName:'Vallejo Monday',num:'EMAR-S1001',name:'Emmanuel Arms'},
+{distName:'Vallejo Monday',num:'FBOV-S1001',name:'First Baptist of Vallejo'},
+{distName:'Vallejo Monday',num:'FIFS-S1001',name:'Food Is Free Solano'},
+{distName:'Vallejo Monday',num:'IB4U-S1001',name:'Incredible Blessings 4 U'},
+{distName:'Vallejo Monday',num:'RTSC-S1001',name:'Rebuilding Together Solano'},
+{distName:'Vallejo Monday',num:'SBCV-S1001',name:'Second Baptist Church Vallejo'},
+{distName:'Vallejo Monday',num:'STBC-S1001',name:'St. Basil SVdP Conference'},
+{distName:'Vallejo Monday',num:'STBC-S1002',name:'Vallejo Adult School'},
+{distName:'Vallejo Monday',num:'STPE-S1001',name:"St. Paul's Episcopal Church"},
+{distName:'Vallejo Monday',num:'VJSC-S1001',name:'Vallejo SDA'},
+{distName:'Vallejo Thursday',num:'ACVJ-S1001',name:'Antioch COGIC'},
+{distName:'Vallejo Thursday',num:'BIBS-S1001',name:'Bibett:  Shamia Recovery Center'},
+{distName:'Vallejo Thursday',num:'BGEG-S1001',name:'Boys & Girls Empowerment Group'},
+{distName:'Vallejo Thursday',num:'CACC-S1001',name:'Calvary Comm Church'},
+{distName:'Vallejo Thursday',num:'CAMI-S1004',name:'Caminar-Case Management Program'},
+{distName:'Vallejo Thursday',num:'CAMI-S1003',name:'Caminar-Wellness & Recovery'},
+{distName:'Vallejo Thursday',num:'DIGO-S1001',name:'Divine Guidance Outreach'},
+{distName:'Vallejo Thursday',num:'FBCV-S1001',name:"Faith Food Friday's"},
+{distName:'Vallejo Thursday',num:'FMBC-S1001',name:'Friendship Missionary Baptist'},
+{distName:'Vallejo Thursday',num:'GEHO-S1001',name:'Genesis House'},
+{distName:'Vallejo Thursday',num:'GSMB-S1001',name:'Good Samaritan Missionary Baptist'},
+{distName:'Vallejo Thursday',num:'HOOA-S1001',name:'House Of Acts'},
+{distName:'Vallejo Thursday',num:'LACL-S1001',name:'La Clinica:  North Vallejo'},
+{distName:'Vallejo Thursday',num:'OPCP-S1001',name:'Old Path COGIC'},
+{distName:'Vallejo Thursday',num:'SHLO-S1001',name:'Shiloh: COGIC Pantry'},
+{distName:'Vallejo Thursday',num:'STDC-S1001',name:"St. Dominic's SVdP"},
+{distName:'Vallejo Thursday',num:'VVBC-S1001',name:'The Journey Church'},
+{distName:'Vallejo Thursday',num:'FUMC-S1001',name:'Wayside United Methodist Church'},
+{distName:'East County Thursday',num:'AIHI-C3001',name:'Aim High: Garin School'},
+{distName:'East County Thursday',num:'AIHI-C3005',name:'Aim High: Pioneer'},
+{distName:'East County Thursday',num:'AIHI-C3009',name:'Aim High: IME'},
+{distName:'East County Thursday',num:'AVGH-C3001',name:'Avalon Group Home: Almond Site'},
+{distName:'East County Thursday',num:'AVGH-C3003',name:'Avalon Group Homes: Brentwood'},
+{distName:'East County Thursday',num:'AVGH-C3004',name:'Avalon Group Home: Magnolia'},
+{distName:'East County Thursday',num:'AVGH-C3005',name:'Avalon Group Home: Connie Site'},
+{distName:'East County Thursday',num:'AVGH-C3006',name:'Delta Residential Legends'},
+{distName:'East County Thursday',num:'AVGH-C3008',name:'Avalon Group Homes: Solitude'},
+{distName:'East County Thursday',num:'AVGH-C3002',name:'Delta Residential: Stony Hill'},
+{distName:'East County Thursday',num:'AVGH-C3007',name:'Delta Residential: Ridgecrest'},
+{distName:'East County Thursday',num:'BBCC-C3006',name:'BiBett: East Cnty Wollam'},
+{distName:'East County Thursday',num:'FAWC-C3002',name:'Family Life Center Mens GH'},
+{distName:'East County Thursday',num:'FAWC-C3003',name:'Family Life Center Womens GH'},
+{distName:'East County Thursday',num:'JANR-C3001',name:'J and R Care Home - Sarah Street'},
+{distName:'East County Thursday',num:'JANR-C3002',name:'J and R Care Home - Dainty Avenue'},
+{distName:'East County Thursday',num:'SP4R-C3001',name:'Support 4 Recovery'},
+{distName:'East County Thursday',num:'AMFC-C3001',name:'AMF Food Closet'},
+{distName:'East County Thursday',num:'ESHM-C3001',name:'En Su Habitacion'},
+{distName:'East County Thursday',num:'FAWC-C3001',name:'Family Worship Center Pantry'},
+{distName:'East County Thursday',num:'FIBC-C3001',name:'1st Baptist Church-Pantry'},
+{distName:'East County Thursday',num:'GBFC-C3001',name:'Grace Bible Fellowship Church'},
+{distName:'East County Thursday',num:'GFMB-C3001',name:'Greater Faith Miss Baptist'},
+{distName:'East County Thursday',num:'HORC-C3001',name:'Holy Rosary - St. Vincent'},
+{distName:'East County Thursday',num:'INCM-C3001',name:'Agape Intl. Church Ministries'},
+{distName:'East County Thursday',num:'LIMI-C3001',name:'Light Ministries Church Soup'},
+{distName:'East County Thursday',num:'LIMI-C3002',name:'Light Ministries Church Pntry'},
+{distName:'East County Thursday',num:'LMCF-C3001',name:'Los Medanos College Foundation'},
+{distName:'East County Thursday',num:'MEHO-C3002',name:'Mercy Housing Brentwood'},
+{distName:'East County Thursday',num:'NECC-C3001',name:'New Covenant Church'},
+{distName:'East County Thursday',num:'OSCI-C3001',name:'Oakley Senior Citizens'},
+{distName:'East County Thursday',num:'PFLM-C3001',name:'Power For Living Ministries'},
+{distName:'East County Thursday',num:'SAAN-C3001',name:'Salvation Army: Antioch'},
+{distName:'East County Thursday',num:'SPMC-C3001',name:'St. Peter Martyr Church'},
+{distName:'East County Thursday',num:'SVCC-C3001',name:'St. Vincent de Paul- CC'},
+{distName:'East County Thursday',num:'TBCC-C3001',name:'The Bay Church:  Brentwood'},
+{distName:'East County Thursday',num:'TLPP-C3001',name:'The Landing Place Pantry'},
+{distName:'East County Thursday',num:'VICC-C3001',name:'Visions Christian Center'},
+{distName:'East County Friday',num:'LIME-C3001',name:'Lighthouse Mentoring: Garden'},
+{distName:'East County Friday',num:'LIFA-C3001',name:'Lilliput Families'},
+{distName:'East County Friday',num:'LACM-C3001',name:'Love A Child Missions'},
+{distName:'East County Friday',num:'BUMC-C3001',name:'Hope House - BUMC'},
+{distName:'East County Friday',num:'CHRE-C2001',name:'Chosen Remnant'},
+{distName:'East County Friday',num:'COGS-C3001',name:'Church of Good Shepherd SVDP'},
+{distName:'East County Friday',num:'DACO-C3001',name:'Diane Ave. Church of Christ'},
+{distName:'East County Friday',num:'FIFC-C3001',name:'First Family Church'},
+{distName:'East County Friday',num:'GECH-C3001',name:'Genesis Church'},
+{distName:'East County Friday',num:'GRBR-C3001',name:'Gracefully Broken'},
+{distName:'East County Friday',num:'GRTE-C3001',name:'Grace Temple COGIC'},
+{distName:'East County Friday',num:'HEDC-C3001',name:'Hijas Del Campo'},
+{distName:'East County Friday',num:'IMHE-C3001',name:'Immaculate Heart SVdP'},
+{distName:'East County Friday',num:'KICH-C3001',name:'Kings Chapel'},
+{distName:'East County Friday',num:'NEDC-C3001',name:'New Destiny Church'},
+{distName:'East County Friday',num:'OPJU-C3001',name:'Opportunity Junction'},
+{distName:'East County Friday',num:'PUMC-C3002',name:'Pittsburg UMC Pantry'},
+{distName:'East County Friday',num:'RVTS-C3001',name:'Rivertown Veterans Thrift Store'},
+{distName:'East County Friday',num:'SEED-C3001',name:'Seed of Faith Church'},
+{distName:'East County Friday',num:'SHOW-C3001',name:'Showers of Blessings'},
+{distName:'East County Friday',num:'SLIF-C3001',name:'Support Life: Antioch'},
+{distName:'East County Friday',num:'SLIF-C3002',name:'Support Life: Brentwood'},
+{distName:'East County Friday',num:'STAN-C3001',name:'St. Anne Conference SVDP'},
+{distName:'East County Friday',num:'STAC-C3001',name:'St. Anthony Conference SVDP'},
+{distName:'Fairfield Tuesday',num:'ARSU-S2002',name:'Archway Recovery Services:Home'},
+{distName:'Fairfield Tuesday',num:'BCCF-S2001',name:'Bethel Community Church of Fairfield'},
+{distName:'Fairfield Tuesday',num:'CNMP-S2001',name:'Casa Nova Mobile Park'},
+{distName:'Fairfield Tuesday',num:'CASS-S1001',name:'Catholic Charities of Solano'},
+{distName:'Fairfield Tuesday',num:'FCAC-S2001',name:'Fairfield CANB'},
+{distName:'Fairfield Tuesday',num:'FACC-S2001',name:'Fairfield City Church'},
+{distName:'Fairfield Tuesday',num:'FASC-S2001',name:'Fairfield SDA Church'},
+{distName:'Fairfield Tuesday',num:'MOWS-S2001',name:'Meals on Wheels - Solano'},
+{distName:'Fairfield Tuesday',num:'MCBC-S2001',name:'Mount Calvary Baptist Church'},
+{distName:'Fairfield Tuesday',num:'OPRF-S2001',name:'Operation Rooftop'},
+{distName:'Fairfield Tuesday',num:'PKPL-S2001',name:'Parkway Plaza'},
+{distName:'Fairfield Tuesday',num:'ROPF-S2001',name:'Rockville Presbyterian Fellows'},
+{distName:'Fairfield Tuesday',num:'SAFF-S2001',name:'Salvation Army Fairfield'},
+{distName:'Fairfield Tuesday',num:'SAVJ-S1001',name:'Salvation Army Vallejo'},
+{distName:'Fairfield Tuesday',num:'SAFF-S3002',name:'Salvation Army: Vacaville'},
+{distName:'Fairfield Tuesday',num:'SAMO-S2001',name:'Samoan Christian Fellowship'},
+{distName:'Fairfield Tuesday',num:'SOLC-S2001',name:'Solano Community College'},
+{distName:'Fairfield Tuesday',num:'SMLC-S2001',name:"St. Mark's Lutheran Church"},
+{distName:'Fairfield Tuesday',num:'TLBC-S2001',name:'True Love Baptist Church'},
+{distName:'Fairfield Wednesday',num:'CAMI-S2002',name:'Caminar:  Laurel Creek'},
+{distName:'Fairfield Wednesday',num:'VASS-S3001',name:'Vacaville Soc Srvcs: Opportunity House'},
+{distName:'Fairfield Wednesday',num:'ARSU-S2001',name:'Archway Recovery Service: Tabor'},
+{distName:'Fairfield Wednesday',num:'SHIN-S2001',name:'Beck Ave. Navigation Center'},
+{distName:'Fairfield Wednesday',num:'CAMI-S1001',name:'CAMINAR: GATEWAY'},
+{distName:'Fairfield Wednesday',num:'FSAD-S2001',name:'Fairfield-Suisun Adult Education'},
+{distName:'Fairfield Wednesday',num:'LGCM-S2001',name:'LOGIC Ministries'},
+{distName:'Fairfield Wednesday',num:'LICH-S2001',name:'Liberty Church'},
+{distName:'Fairfield Wednesday',num:'MTCA-S2001',name:'Mount Carmel SVdP'},
+{distName:'Fairfield Wednesday',num:'RVCS-S2001',name:'Rio Vista Food Pantry'},
+{distName:'Fairfield Wednesday',num:'RVCS-S2002',name:'Rio Vista Food Pantry/Home Delivery'},
+{distName:'Fairfield Wednesday',num:'SFCC-S2001',name:'Suisun Fairfield Congregational Church'},
+{distName:'Fairfield Wednesday',num:'STSC-S2001',name:'St. Stephen Christian Methodist Episcopal (CME) Church'},
+{distName:'Fairfield Wednesday',num:'STMP-S3001',name:"St. Mary's Parish Food Locker"},
+{distName:'Fairfield Wednesday',num:'EDGE-S2001',name:'The Edge Community Church'},
+{distName:'Fairfield Wednesday',num:'EDGE-S1001',name:'The Edge - Soup Kitchen'},
+{distName:'Fairfield Wednesday',num:'VFBC-S3001',name:'Vacaville First Baptist Church'},
+{distName:'Fairfield Wednesday',num:'WLOC-S3001',name:'We Love Our City'}
+];
+
+const SEED_DOW={'Vallejo Monday':1,'Vallejo Thursday':4,'East County Thursday':4,'East County Friday':5,'Fairfield Tuesday':2,'Fairfield Wednesday':3};
+let db={version:4,distributions:[],masterAgencies:[],itemLibrary:[],reports:[],locationsList:[],orderSchedule:[],orderLog:[],copiedItems:[],lastExportAt:null};
+let cur=null;
+let newPType='cases';
+let remoteSha=null, syncTimer=null;
+
+// SYNC
+function setSyncState(state){
+  const el=document.getElementById('sidebar-sync');if(!el)return;
+  const S={idle:['','transparent'],syncing:['⟳ Syncing…','rgba(255,255,255,0.4)'],saved:['✓ Saved','#4ade80'],conflict:['⚠ Conflict','#fbbf24'],error:['✕ Error','#f87171']};
+  const[text,color]=S[state]||S.idle;
+  el.textContent=text;el.style.color=color;
+  if(state==='saved')setTimeout(()=>setSyncState('idle'),3000);
+}
+async function ghGet(){
+  const res=await fetch(GH_API,{headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json'}});
+  if(res.status===404){remoteSha=null;return null;}
+  if(!res.ok)throw new Error('GH GET '+res.status);
+  const json=await res.json();
+  remoteSha=json.sha;
+  return JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g,'')))));
+}
+async function ghPut(retrying){
+  setSyncState('syncing');
+  const content=btoa(unescape(encodeURIComponent(JSON.stringify(db))));
+  const body={message:'CheckinPallets data update',content};
+  if(remoteSha)body.sha=remoteSha;
+  const res=await fetch(GH_API,{method:'PUT',headers:{Authorization:'token '+GH_TOKEN,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.status===409&&!retrying){
+    try{const remote=await ghGet();if(remote){db=remote;try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}renderSidebar();}setSyncState('conflict');setTimeout(()=>ghPut(true),500);}catch(e){setSyncState('error');}
+    return;
+  }
+  if(!res.ok){setSyncState('error');return;}
+  const json=await res.json();remoteSha=json.content.sha;setSyncState('saved');
+}
+function save(){
+  try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}
+  clearTimeout(syncTimer);setSyncState('syncing');
+  syncTimer=setTimeout(()=>ghPut(false),1500);
+}
+// SCHEMA v1 → v2 MIGRATION
+// Runs once per db object the first time it's loaded at an old version. Converts the old
+// fully-duplicated per-distribution agency lists into a single masterAgencies list (one
+// record per agency, linked to its distribution via distId), backfills a date onto every
+// distribution, and folds in the known real agency roster (SEED_AGENCIES) for the six
+// live distributions. Idempotent: safe to call on an already-migrated db (each stage no-ops
+// once its version number has been reached).
+const DIST_RENAME_V3={
+  'Monday Vallejo':'Vallejo Monday',
+  'Thursday Vallejo':'Vallejo Thursday',
+  'Thursday East County':'East County Thursday',
+  'Friday East County':'East County Friday',
+  'Tuesday Fairfield':'Fairfield Tuesday',
+  'Wednesday Fairfield':'Fairfield Wednesday',
+};
+function migrateDb(){
+  db.itemLibrary=db.itemLibrary||[];
+  db.reports=db.reports||[];
+  db.masterAgencies=db.masterAgencies||[];
+
+  if(!db.version||db.version<2){
+    delete db.activeDistId;
+    const conflicts=[]; // agency numbers that appeared in more than one OLD distribution
+
+    // 1) Fold each distribution's embedded agencies into the master list.
+    db.distributions.forEach(d=>{
+      (d.agencies||[]).forEach(a=>{
+        const num=(a.num||'').trim();
+        const existing=num?db.masterAgencies.find(m=>(m.num||'').trim().toLowerCase()===num.toLowerCase()):null;
+        if(existing){
+          conflicts.push({num,name:a.name,keptIn:d.name,droppedFrom:existing.distId});
+          existing.distId=d.id; // last one encountered wins (most-recently-added distribution)
+          existing.id=a.id;     // adopt this occurrence's id so it still lines up with this
+                                 // distribution's checkedIn/pickOrder/orderStatus references
+          existing.name=a.name;existing.group=a.group||'';
+        }else{
+          // Preserve the original agency id (not a fresh uid()) — d.checkedIn, d.pickOrder,
+          // d.lateSlots, and d.orderStatus all reference agencies by this id, and that
+          // linkage has to survive the move into masterAgencies.
+          db.masterAgencies.push({id:a.id,num,name:a.name,group:a.group||'',distId:d.id,hidden:false});
+        }
+      });
+      delete d.agencies;
+      d.date=d.date||dateStrFromId(d.id);
+      d.notes=d.notes||'';
+    });
+
+    // 2) Merge in the real roster from the spreadsheet for the six live distributions —
+    //    matching by distribution name (exact, case-insensitive), creating the distribution
+    //    if it doesn't exist yet (this is expected for the two brand-new East County days).
+    const unmatchedDistNames=[];
+    const seedDistNames=[...new Set(SEED_AGENCIES.map(s=>s.distName))];
+    seedDistNames.forEach(name=>{
+      let dist=db.distributions.find(x=>(x.name||'').trim().toLowerCase()===name.toLowerCase());
+      if(!dist){
+        dist={id:uid(),name,date:todayStr(),notes:'',pallets:[],checkedIn:[],pickOrder:[],lateSlots:[],palletsDone:{},orderStatus:{},orderForm:{orderNumber:'',location:'',items:[],lastSentAt:null}};
+        db.distributions.push(dist);
+        unmatchedDistNames.push(name);
+      }
+      if(dist.dayOfWeek===undefined&&SEED_DOW[name]!==undefined)dist.dayOfWeek=SEED_DOW[name];
+      SEED_AGENCIES.filter(s=>s.distName===name).forEach(s=>{
+        const already=db.masterAgencies.find(m=>(m.num||'').trim().toLowerCase()===s.num.toLowerCase());
+        if(!already){
+          db.masterAgencies.push({id:uid(),num:s.num,name:s.name,group:'',distId:dist.id,hidden:false});
+        }
+      });
+    });
+
+    // 3) Leave a one-time, visible notice about anything that needed a human look —
+    //    shown once after load, then dismissed and cleared.
+    if(conflicts.length||unmatchedDistNames.length){
+      db.migrationNotice={conflicts,createdDists:unmatchedDistNames};
+    }
+
+    db.version=2;
+  }
+
+  if(db.version<3){
+    // Rename existing live distributions from "Day Location" to "Location Day", in place —
+    // same distribution id, same agencies/pallets/history, just a relabel.
+    db.distributions.forEach(d=>{
+      const newName=DIST_RENAME_V3[d.name];
+      if(newName)d.name=newName;
+    });
+    db.version=3;
+  }
+
+  if(db.version<4){
+    db.locationsList=db.locationsList||[];
+    db.orderSchedule=db.orderSchedule||[];
+    db.orderLog=db.orderLog||[];
+    db.copiedItems=db.copiedItems||[];
+    db.lastExportAt=db.lastExportAt||null;
+    db.distributions.forEach(d=>{
+      if(!d.orderForm)d.orderForm={orderNumber:'',location:'',items:[],lastSentAt:null};
+      else{
+        d.orderForm.items=d.orderForm.items||[];
+        if(d.orderForm.lastSentAt===undefined)d.orderForm.lastSentAt=null;
+      }
+    });
+    try{
+      const legacyForm=localStorage.getItem('foodBankOrderForm');
+      if(legacyForm){
+        const parsed=JSON.parse(legacyForm);
+        if(parsed.items&&parsed.items.length){
+          const target=db.distributions.find(d=>d.date===parsed.date)||db.distributions[0];
+          if(target){
+            target.orderForm=target.orderForm||{orderNumber:'',location:'',items:[],lastSentAt:null};
+            target.orderForm.location=parsed.location||target.orderForm.location;
+            target.orderForm.orderNumber=parsed.orderNumber||target.orderForm.orderNumber;
+            target.orderForm.items=parsed.items.map(it=>({...it,id:it.id||Shared.uid()}));
+          }
+        }
+        localStorage.removeItem('foodBankOrderForm');
+      }
+      const legacyLog=localStorage.getItem('foodBankOrderLog');
+      if(legacyLog){db.orderLog=JSON.parse(legacyLog);localStorage.removeItem('foodBankOrderLog');}
+      const legacySched=localStorage.getItem('foodBankOrderSchedule');
+      if(legacySched){db.orderSchedule=JSON.parse(legacySched);localStorage.removeItem('foodBankOrderSchedule');}
+      const legacyLocs=localStorage.getItem('foodBankLocationsList');
+      if(legacyLocs){db.locationsList=JSON.parse(legacyLocs);localStorage.removeItem('foodBankLocationsList');}
+      const legacyCopied=localStorage.getItem('foodBankCopiedItems');
+      if(legacyCopied){db.copiedItems=JSON.parse(legacyCopied);localStorage.removeItem('foodBankCopiedItems');}
+      const legacyExport=localStorage.getItem('foodBankLastExportAt');
+      if(legacyExport){db.lastExportAt=legacyExport;localStorage.removeItem('foodBankLastExportAt');}
+    }catch(e){}
+    db.version=4;
+  }
+}
+
+function load(){
+  try{const r=localStorage.getItem('fb_db');if(r)db=JSON.parse(r)}catch(e){}
+  migrateDb();
+  renderSidebar();
+  ghGet().then(remote=>{
+    if(remote){
+      db=remote;
+      migrateDb();
+      try{localStorage.setItem('fb_db',JSON.stringify(db))}catch(e){}
+      renderSidebar();
+    }
+    setSyncState('idle');
+    showMigrationNoticeIfAny();
+  }).catch(()=>{showMigrationNoticeIfAny();});
+}
+function showMigrationNoticeIfAny(){
+  if(!db.migrationNotice)return;
+  const n=db.migrationNotice;
+  const lines=[];
+  if(n.createdDists&&n.createdDists.length)lines.push(`Created new distribution(s): ${n.createdDists.join(', ')}.`);
+  if(n.conflicts&&n.conflicts.length)lines.push(`${n.conflicts.length} agency number(s) appeared in more than one of your old distributions — each was kept in whichever distribution it was found in last (${n.conflicts.map(c=>c.num).join(', ')}). Double-check these landed in the right place under Manage Distributions.`);
+  const cancelBtn=document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
+  const restoreCancel=()=>{cancelBtn.textContent='Cancel';cancelBtn.onclick=()=>closeModal('m-confirm');};
+  const dismiss=()=>{delete db.migrationNotice;save();closeModal('m-confirm');restoreCancel();};
+  document.getElementById('conf-title').textContent='Heads up — one-time migration notice';
+  document.getElementById('conf-msg').innerHTML=lines.map(l=>`<div style="margin-bottom:8px;">${l}</div>`).join('');
+  document.getElementById('conf-ok').textContent='Got it';
+  document.getElementById('conf-ok').className='btn btn-primary';
+  document.getElementById('conf-ok').onclick=dismiss;
+  cancelBtn.textContent='Got it';
+  cancelBtn.onclick=dismiss;
+  openModal('m-confirm');
+}
+
+function uid(){return Shared.uid();}
+function toISODate(dt){return Shared.toISODate(dt);}
+function todayStr(){return Shared.todayStr();}
+function dateStrFromId(id){
+  const ts=parseInt(String(id).slice(0,13),10);
+  const dt=new Date(ts);
+  return isNaN(dt.getTime())?todayStr():toISODate(dt);
+}
+function fmtDateShort(iso){return Shared.fmtDateShort(iso);}
+const DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function dowOf(iso){return new Date(iso+'T00:00:00').getDay();}
+// Advances a date to the next occurrence of the distribution's set weekday, walking forward
+// day-by-day from the day after `dateStr`. If no weekday is set, falls back to a flat +7 days.
+// This is deliberately self-correcting: if the date field ever drifted off-pattern (a holiday
+// hand-edit, a bad migration guess, etc.), this snaps back onto the correct weekday instead of
+// perpetuating the drift by blindly adding 7.
+function advanceToNextOccurrence(dateStr,dayOfWeek){
+  const cur=new Date(dateStr+'T00:00:00');
+  if(dayOfWeek===undefined||dayOfWeek===null||dayOfWeek===''){
+    cur.setDate(cur.getDate()+7);
+    return toISODate(cur);
+  }
+  const target=Number(dayOfWeek);
+  cur.setDate(cur.getDate()+1);
+  while(cur.getDay()!==target){cur.setDate(cur.getDate()+1);}
+  return toISODate(cur);
+}
+// MASTER AGENCIES — single source of truth; each agency belongs to exactly one distribution via distId
+function getDistAgencies(d){return (db.masterAgencies||[]).filter(a=>a.distId===d.id);}
+function fmtDate(d){
+  if(!d)return'';const[y,m,day]=d.split('-');
+  return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+parseInt(day)+', '+y;
+}
+function fmtNow(){return fmtDate(new Date().toISOString().slice(0,10));}
+function getDist(){return db.distributions.find(d=>d.id===cur)}
+function calcAlloc(dist,qty){
+  const cset=new Set(dist.checkedIn||[]);
+  const count=getDistAgencies(dist).filter(a=>cset.has(a.id)).length;
+  if(!count)return{perAgency:0,count:0,leftover:qty};
+  const perAgency=Math.floor(qty/count);
+  return{perAgency,count,leftover:qty-perAgency*count};
+}
+
+// SIDEBAR
+function renderSidebar(){
+  const list=document.getElementById('sidebar-dist-list');list.innerHTML='';
+  if(!db.distributions.length){
+    list.innerHTML='<div style="padding:8px 16px;font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;">No distributions yet</div>';
+    return;
+  }
+  db.distributions.forEach((d,i)=>{
+    const div=document.createElement('div');
+    div.className='sidebar-dist-item'+(d.id===cur?' active-view':'');
+    div.onclick=()=>openDist(d.id);
+    div.innerHTML=`<div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]}"></div>
+      <div class="sdi-info">
+        <div class="sdi-name">${d.name}</div>
+        <div class="sdi-status" style="color:rgba(255,255,255,0.3);">${d.date?fmtDateShort(d.date):'—'}</div>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function openDist(id){
+  cur=id;const dist=getDist();if(!dist)return;
+  document.getElementById('screen-home').classList.remove('active');
+  document.getElementById('screen-dist').classList.add('active');
+  document.getElementById('t-title').textContent=dist.name;
+  document.getElementById('t-sub').textContent=dist.date?fmtDateShort(dist.date):'';
+  ['orderform','checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-checkin').classList.add('active');
+  document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nav-checkin').classList.add('active');
+  document.getElementById('tab-action-bar').style.display='none';
+  renderSidebar();renderDistHero();renderCheckin();
+  document.getElementById('scroll-area').scrollTop=0;
+}
+
+function switchTab(tab,btn){
+  if(cur&&tab!=='orderform'&&typeof OrderForm!=='undefined')OrderForm.flush();
+  ['orderform','checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  document.getElementById('tab-action-bar').style.display=tab==='pallets'?'block':'none';
+  document.getElementById('scroll-area').scrollTop=0;
+  if(tab==='orderform'&&typeof OrderForm!=='undefined')OrderForm.activate();
+  else if(tab==='checkin')renderCheckin();
+  else if(tab==='lottery')renderLottery();
+  else if(tab==='pallets')renderPallets();
+  else if(tab==='settings')renderSettings();
+}
+
+function mapOrderItemsToPallets(orderItems){
+  const out=[];
+  (orderItems||[]).forEach(it=>{
+    const materialNumber=(it.itemNum||'').trim();
+    const desc=(it.description||materialNumber||'').trim();
+    if(!materialNumber&&!desc)return;
+    const qtyRaw=parseFloat(it.needToPull);
+    const qty=isNaN(qtyRaw)?0:(it.pullUnit==='CS'||it.pullUnit==='PLT'?Math.floor(qtyRaw):Math.round(qtyRaw*100)/100);
+    if(qty<=0&&!materialNumber&&!desc)return;
+    let type='cases';
+    if(it.pullUnit==='BIN'||it.pullUnit==='LBS')type='bin';
+    out.push({id:uid(),desc,materialNumber:materialNumber||'',type,qty:qty||0,sourcePalletNum:it.palletNum||''});
+  });
+  return out;
+}
+
+function applyOrderFormToPallets(mode){
+  const d=getDist();if(!d)return;
+  OrderForm.flush();
+  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
+  if(!mapped.length){alert('No items with quantities to send. Add items in Order Form first.');return;}
+  if(mode==='replace'){
+    d.pallets=mapped;
+  }else{
+    d.pallets=d.pallets||[];
+    mapped.forEach(p=>d.pallets.push(p));
+  }
+  if(d.orderForm)d.orderForm.lastSentAt=new Date().toISOString();
+  mapped.forEach(p=>{
+    if(!p.materialNumber)return;
+    const libItems=getLibItems();
+    if(!libItems.find(i=>(i.materialNumber||'').toLowerCase()===p.materialNumber.toLowerCase())){
+      libItems.push({name:p.desc,materialNumber:p.materialNumber});
+      libItems.sort((a,b)=>a.name.localeCompare(b.name));
+      db.itemLibrary=libItems;
+    }
+  });
+  save();
+  switchTab('pallets',document.getElementById('nav-pallets'));
+}
+
+function confirmSendToPallets(){
+  const d=getDist();if(!d)return;
+  OrderForm.flush();
+  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
+  if(!mapped.length){alert('No items with quantities to send. Add items in Order Form first.');return;}
+  const existing=(d.pallets||[]).length;
+  document.getElementById('conf-title').textContent='Send to Pallets?';
+  document.getElementById('conf-msg').innerHTML=existing
+    ? `This distribution already has <strong>${existing}</strong> pallet(s). Replace them with ${mapped.length} item(s) from the order form, or append as new pallets?`
+    : `Add ${mapped.length} pallet(s) from the order form to this distribution?`;
+  const cancelBtn=document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
+  const restoreCancel=()=>{cancelBtn.textContent='Cancel';cancelBtn.onclick=()=>closeModal('m-confirm');};
+  document.getElementById('conf-ok').textContent=existing?'Replace all':'Add to Pallets';
+  document.getElementById('conf-ok').className='btn btn-primary';
+  document.getElementById('conf-ok').onclick=()=>{closeModal('m-confirm');restoreCancel();applyOrderFormToPallets('replace');};
+  cancelBtn.textContent=existing?'Append instead':'Cancel';
+  cancelBtn.onclick=()=>{
+    closeModal('m-confirm');
+    restoreCancel();
+    if(existing)applyOrderFormToPallets('append');
+  };
+  openModal('m-confirm');
+}
+
+// MANAGE DISTRIBUTIONS
+function openManageDists(){
+  renderMgrDistList();
+  document.getElementById('mgr-new-name').value='';
+  openModal('m-manage-dists');
+  setTimeout(()=>document.getElementById('mgr-new-name').focus(),200);
+}
+function renderMgrDistList(){
+  const el=document.getElementById('mgr-dist-list');
+  if(!db.distributions.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No distributions yet. Add your first one below.</div>';
+    return;
+  }
+  el.innerHTML='<div class="card" style="margin:0;">'
+    +db.distributions.map((d,i)=>`
+      <div class="row-item" style="align-items:center;">
+        <div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]};width:10px;height:10px;border-radius:50%;flex-shrink:0;"></div>
+        <div class="row-main">
+          <div style="font-size:14px;font-weight:500;">${d.name}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${getDistAgencies(d).length} agencies · ${(d.pallets||[]).length} pallets</div>
+        </div>
+        <select onchange="setDistDayOfWeek('${d.id}',this.value)" style="width:auto;flex-shrink:0;margin-right:6px;font-size:12px;padding:5px 6px;" title="Usual day of week — used to auto-advance the date at Close Week">
+          <option value="">Day…</option>
+          ${DOW_NAMES.map((nm,idx)=>`<option value="${idx}" ${d.dayOfWeek===idx?'selected':''}>${nm}</option>`).join('')}
+        </select>
+        <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:6px 12px;margin-right:6px;" onclick="openManageAgencies('${d.id}')">👥 Agencies</button>
+        <button onclick="removeManagedDist('${d.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+      </div>`).join('')
+    +'</div>';
+}
+function setDistDayOfWeek(id,val){
+  const d=getDistById(id);if(!d)return;
+  d.dayOfWeek=val===''?null:Number(val);
+  save();
+}
+function addManagedDist(){
+  const name=document.getElementById('mgr-new-name').value.trim();
+  if(!name)return;
+  const dist={id:uid(),name,date:todayStr(),pallets:[],checkedIn:[],pickOrder:[],lateSlots:[],palletsDone:{},orderStatus:{},orderForm:{orderNumber:'',location:'',items:[],lastSentAt:null},notes:''};
+  db.distributions.push(dist);
+  save();
+  document.getElementById('mgr-new-name').value='';
+  renderMgrDistList();
+  renderSidebar();
+}
+function removeManagedDist(id){
+  db.masterAgencies=db.masterAgencies.filter(a=>a.distId!==id);
+  db.distributions=db.distributions.filter(x=>x.id!==id);
+  if(cur===id){
+    cur=null;
+    document.getElementById('screen-dist').classList.remove('active');
+    document.getElementById('screen-home').classList.add('active');
+    document.getElementById('t-title').textContent='Food Bank';
+    document.getElementById('t-sub').textContent='Select a distribution';
+  }
+  save();renderMgrDistList();renderSidebar();
+}
+
+// HERO
+function renderDistHero(){
+  const d=getDist();if(!d)return;
+  const cin=(d.checkedIn||[]).length,tot=getDistAgencies(d).length;
+  const pdone=Object.values(d.palletsDone||{}).filter(Boolean).length,tp=(d.pallets||[]).length;
+  const orders=Object.values(d.orderStatus||{}).filter(Boolean).length;
+  document.getElementById('dist-hero').innerHTML=`
+    <div class="hero-label">DISTRIBUTION${d.date?' · '+fmtDateShort(d.date):''}</div>
+    <div class="hero-name">${d.name}</div>
+    <div class="hero-grid">
+      <div class="hstat"><div class="hstat-val">${cin}/${tot}</div><div class="hstat-lbl">Checked in</div></div>
+      <div class="hstat"><div class="hstat-val">${pdone}/${tp}</div><div class="hstat-lbl">Pallets done</div></div>
+      <div class="hstat"><div class="hstat-val">${orders}</div><div class="hstat-lbl">Orders</div></div>
+    </div>`;
+}
+
+// CHECK-IN
+// Hidden agencies (Option A): still fully counted and eligible for check-in/lottery — just
+// filtered out of the default list so recurring no-shows don't clutter it. showHiddenAgencies
+// is a view-only toggle, not persisted, so a surprise walk-in can always be found and checked in.
+let showHiddenAgencies=false;
+function toggleShowHidden(){showHiddenAgencies=!showHiddenAgencies;renderCheckin();}
+function renderCheckin(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cset=new Set(d.checkedIn||[]),omap=d.orderStatus||{};
+  const lateSlots=new Set(d.lateSlots||[]);
+  const lotteryRan=(d.pickOrder||[]).length>0;
+  const list=document.getElementById('ci-list');list.innerHTML='';
+  const allAgencies=getDistAgencies(d);
+  document.getElementById('ci-badge').textContent=`${cset.size} / ${allAgencies.length}`;
+  const hiddenCount=allAgencies.filter(a=>a.hidden&&!cset.has(a.id)).length;
+  const toggleEl=document.getElementById('ci-hidden-toggle');
+  toggleEl.textContent=hiddenCount?(showHiddenAgencies?'Hide the usual no-shows':`Show ${hiddenCount} hidden`):'';
+  if(!allAgencies.length){list.innerHTML=`<div style="text-align:center;padding:28px;color:var(--gray-500);"><div style="font-weight:600;color:var(--gray-700);margin-bottom:4px;">No agencies yet</div>Set up this distribution's agencies from <strong>⚙ Manage Distributions</strong>.</div>`;return}
+  const visible=allAgencies.filter(a=>showHiddenAgencies||!a.hidden||cset.has(a.id));
+  if(!visible.length){list.innerHTML=`<div style="text-align:center;padding:28px;color:var(--gray-500);">All agencies assigned here are hidden. <span style="color:var(--blue);cursor:pointer;" onclick="toggleShowHidden()">Show them</span>.</div>`;return}
+  const sorted=[...visible].sort((a,b)=>a.name.localeCompare(b.name));
+  sorted.forEach(a=>{
+    const checked=cset.has(a.id),hasOrder=!!omap[a.id];
+    const slotKey=a.group?`group:${a.group}`:`solo:${a.id}`;
+    const isLate=checked&&lotteryRan&&lateSlots.has(slotKey);
+    const lateBadge=isLate?`<span style="font-size:10px;font-weight:700;background:#FEF3DC;color:#C47A1E;padding:2px 7px;border-radius:100px;">⏰ Late</span>`:'';
+    const groupBadge=a.group?`<span style="font-size:11px;font-weight:600;background:#FEF3DC;color:#C47A1E;padding:2px 8px;border-radius:100px;">👥 ${a.group}</span>`:'';
+    const hiddenBadge=a.hidden?`<span style="font-size:11px;font-weight:600;background:var(--gray-100);color:var(--gray-500);padding:2px 8px;border-radius:100px;">🙈 Hidden</span>`:'';
+    const row=document.createElement('div');row.className='row-item';
+    row.innerHTML=`
+      <button class="chk ${checked?'on':''}" onclick="toggleCheckin('${a.id}')">✓</button>
+      <div class="row-main">
+        <div class="row-name">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${a.num}</span>`:''}${a.name}</div>
+        <div class="row-sub">
+          <span class="badge ${checked?'b-in':'b-out'}">${checked?'Checked in':'Pending'}</span>
+          ${groupBadge}
+          ${hiddenBadge}
+          ${lateBadge}
+          <span class="badge ${hasOrder?'b-order':'b-noorder'}" onclick="toggleOrder('${a.id}')">${hasOrder?'📋 Order pickup':'No order'}</span>
+        </div>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+function toggleCheckin(id){
+  const d=getDist();if(!d)return;
+  d.checkedIn=d.checkedIn||[];
+  const i=d.checkedIn.indexOf(id);
+  if(i>=0){
+    d.checkedIn.splice(i,1);
+    const a=db.masterAgencies.find(x=>x.id===id);
+    d.pickOrder=(d.pickOrder||[]).filter(k=>k!==`solo:${id}`);
+    d.lateSlots=(d.lateSlots||[]).filter(k=>k!==`solo:${id}`);
+    if(a&&a.group){
+      const stillIn=(d.checkedIn||[]).some(cid=>{
+        const ag=db.masterAgencies.find(x=>x.id===cid);
+        return ag&&ag.group===a.group;
+      });
+      if(!stillIn){
+        d.pickOrder=(d.pickOrder||[]).filter(k=>k!==`group:${a.group}`);
+        d.lateSlots=(d.lateSlots||[]).filter(k=>k!==`group:${a.group}`);
+      }
+    }
+  } else {
+    d.checkedIn.push(id);
+    if((d.pickOrder||[]).length>0){
+      const a=db.masterAgencies.find(x=>x.id===id);
+      d.lateSlots=d.lateSlots||[];
+      if(a&&a.group){
+        const groupKey=`group:${a.group}`;
+        if(!(d.pickOrder||[]).includes(groupKey)){
+          d.pickOrder.push(groupKey);
+          d.lateSlots.push(groupKey);
+        }
+      } else {
+        const soloKey=`solo:${id}`;
+        if(!(d.pickOrder||[]).includes(soloKey)){
+          d.pickOrder.push(soloKey);
+          d.lateSlots.push(soloKey);
+        }
+      }
+    }
+  }
+  save();renderCheckin();
+  const lotteryTab=document.getElementById('tab-lottery');
+  if(lotteryTab&&lotteryTab.classList.contains('active'))renderLottery();
+  const palletsTab=document.getElementById('tab-pallets');
+  if(palletsTab&&palletsTab.classList.contains('active'))renderPallets();
+}
+function toggleOrder(id){const d=getDist();if(!d)return;d.orderStatus=d.orderStatus||{};d.orderStatus[id]=!d.orderStatus[id];save();renderCheckin()}
+
+// ROSTER MANAGEMENT
+// Agencies live in db.masterAgencies (one record each) and belong to exactly one
+// distribution at a time via distId.
+//   - Manage Agencies (master screen) is where agencies get created/edited/deleted.
+//   - Manage Distributions → Agencies is an assignment view scoped to one distribution.
+let mgrAgencyDistId=null;
+function getDistById(id){return db.distributions.find(d=>d.id===id);}
+function refreshAfterRosterChange(){
+  save();
+  renderManageAgencyList();
+  renderMasterAgencyList();
+  renderMgrDistList();
+  renderSidebar();
+  if(cur&&document.getElementById('tab-checkin').classList.contains('active'))renderCheckin();
+}
+function openManageAgencies(distId){
+  const d=getDistById(distId);if(!d)return;
+  mgrAgencyDistId=distId;
+  document.getElementById('ma-dist-name').textContent=d.name;
+  renderManageAgencyList();
+  openModal('m-manage-agencies');
+}
+function renderManageAgencyList(){
+  const d=getDistById(mgrAgencyDistId);if(!d)return;
+  const agencies=getDistAgencies(d);
+  const el=document.getElementById('ma-list');
+  if(!agencies.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No agencies assigned here yet.</div>';
+    return;
+  }
+  const sorted=[...agencies].sort((a,b)=>a.name.localeCompare(b.name));
+  el.innerHTML='<div class="card" style="margin:0;">'
+    +sorted.map(a=>`
+      <div class="row-item" style="align-items:center;">
+        <div class="row-main">
+          <div style="font-size:14px;font-weight:500;">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${a.num}</span>`:''}${a.name}${a.hidden?' <span style="font-size:11px;color:var(--gray-500);font-style:italic;">(hidden)</span>':''}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${a.group?`👥 ${a.group}`:'<span style="font-style:italic;">No group</span>'}</div>
+        </div>
+        <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:5px 12px;margin-right:6px;" onclick="openEditAgency('${a.id}')">Edit / Move</button>
+      </div>`).join('')
+    +'</div>';
+}
+function openMasterAgenciesForDist(distId){
+  openMasterAgencies();
+  document.getElementById('mag-dist').value=distId;
+}
+
+// MASTER AGENCIES (Manage Agencies — add/edit/delete, one flat list across all distributions)
+function openMasterAgencies(){
+  renderMasterAgencyList();
+  document.getElementById('mag-num').value='';
+  document.getElementById('mag-name').value='';
+  document.getElementById('mag-group').value='';
+  openModal('m-master-agencies');
+  setTimeout(()=>document.getElementById('mag-num').focus(),200);
+}
+let magSort={field:'name',dir:1};
+function setMagSort(field){
+  if(magSort.field===field)magSort.dir*=-1;else{magSort.field=field;magSort.dir=1;}
+  renderMasterAgencyList();
+}
+function renderMasterAgencyList(){
+  const distSel=document.getElementById('mag-dist');if(!distSel)return;
+  const prevVal=distSel.value;
+  distSel.innerHTML=db.distributions.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+  if(prevVal&&db.distributions.some(d=>d.id===prevVal))distSel.value=prevVal;
+  const el=document.getElementById('mag-list');
+  const arrow=f=>magSort.field===f?(magSort.dir===1?' ▲':' ▼'):'';
+  const header=`<div style="display:flex;gap:16px;padding:6px 14px;font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.04em;">
+    <span onclick="setMagSort('num')" style="cursor:pointer;width:90px;">Agency #${arrow('num')}</span>
+    <span onclick="setMagSort('name')" style="cursor:pointer;flex:1;">Name${arrow('name')}</span>
+    <span onclick="setMagSort('dist')" style="cursor:pointer;">Distribution${arrow('dist')}</span>
+  </div>`;
+  if(!db.masterAgencies.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No agencies yet. Add your first one below.</div>';
+    return;
+  }
+  const all=[...db.masterAgencies].sort((a,b)=>{
+    let av,bv;
+    if(magSort.field==='num'){av=(a.num||'').toLowerCase();bv=(b.num||'').toLowerCase();}
+    else if(magSort.field==='dist'){av=((getDistById(a.distId)||{}).name||'').toLowerCase();bv=((getDistById(b.distId)||{}).name||'').toLowerCase();}
+    else{av=(a.name||'').toLowerCase();bv=(b.name||'').toLowerCase();}
+    return av<bv?-magSort.dir:av>bv?magSort.dir:0;
+  });
+  el.innerHTML=header+'<div class="card" style="margin:0;">'
+    +all.map(a=>{
+      const d=getDistById(a.distId);
+      return `<div class="row-item" style="align-items:center;">
+        <div class="row-main">
+          <div style="font-size:14px;font-weight:500;">${a.num?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${a.num}</span>`:''}${a.name}${a.hidden?' <span style="font-size:11px;color:var(--gray-500);font-style:italic;">(hidden)</span>':''}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${d?d.name:'<span style="color:var(--red);">No distribution assigned</span>'}${a.group?` · 👥 ${a.group}`:''}</div>
+        </div>
+        <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:5px 12px;margin-right:6px;" onclick="openEditAgency('${a.id}')">Edit</button>
+        <button onclick="removeMasterAgency('${a.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+      </div>`;
+    }).join('')
+    +'</div>';
+}
+function addMasterAgency(){
+  const name=document.getElementById('mag-name').value.trim();if(!name)return;
+  const num=document.getElementById('mag-num').value.trim();
+  const group=document.getElementById('mag-group').value.trim();
+  const distId=document.getElementById('mag-dist').value;if(!distId)return;
+  db.masterAgencies.push({id:uid(),num,name,group:group||'',distId,hidden:false});
+  document.getElementById('mag-num').value='';
+  document.getElementById('mag-name').value='';
+  document.getElementById('mag-group').value='';
+  refreshAfterRosterChange();
+  document.getElementById('mag-num').focus();
+}
+// Shared cleanup: removes an agency from the master list and scrubs any references to it
+// from whichever distribution it belonged to (checked-in state, lottery slots, order flags).
+function removeAgencyEverywhere(id){
+  const a=db.masterAgencies.find(x=>x.id===id);if(!a)return;
+  db.masterAgencies=db.masterAgencies.filter(x=>x.id!==id);
+  const d=getDistById(a.distId);if(!d)return;
+  d.checkedIn=(d.checkedIn||[]).filter(i=>i!==id);
+  const soloKey=`solo:${id}`;
+  d.pickOrder=(d.pickOrder||[]).filter(k=>k!==soloKey);
+  d.lateSlots=(d.lateSlots||[]).filter(k=>k!==soloKey);
+  if(a.group){
+    const stillInGroup=getDistAgencies(d).some(x=>x.group===a.group);
+    if(!stillInGroup){
+      const groupKey=`group:${a.group}`;
+      d.pickOrder=(d.pickOrder||[]).filter(k=>k!==groupKey);
+      d.lateSlots=(d.lateSlots||[]).filter(k=>k!==groupKey);
+    }
+  }
+  delete (d.orderStatus||{})[id];
+}
+function removeMasterAgency(id){
+  removeAgencyEverywhere(id);
+  refreshAfterRosterChange();
+}
+
+// EDIT AGENCY (number, name, group, hidden, and which distribution it belongs to)
+function openEditAgency(id){
+  const a=db.masterAgencies.find(x=>x.id===id);if(!a)return;
+  const d=getDistById(a.distId);
+  const groups=[...new Set((d?getDistAgencies(d):[]).map(x=>x.group).filter(Boolean))].sort();
+  document.getElementById('ea-group-list').innerHTML=groups.map(g=>`<option value="${g}">`).join('');
+  document.getElementById('ea-num').value=a.num||'';
+  document.getElementById('ea-name').value=a.name||'';
+  document.getElementById('ea-group').value=a.group||'';
+  document.getElementById('ea-hidden').checked=!!a.hidden;
+  const distSel=document.getElementById('ea-dist');
+  distSel.innerHTML=db.distributions.map(dd=>`<option value="${dd.id}" ${dd.id===a.distId?'selected':''}>${dd.name}</option>`).join('');
+  document.getElementById('ea-save').onclick=()=>{
+    const name=document.getElementById('ea-name').value.trim();if(!name)return;
+    a.num=document.getElementById('ea-num').value.trim();
+    a.name=name;
+    a.group=document.getElementById('ea-group').value.trim();
+    a.hidden=document.getElementById('ea-hidden').checked;
+    const newDistId=distSel.value;
+    if(newDistId!==a.distId){
+      // Moving to a different distribution — this week's check-in/lottery state at the old
+      // distribution doesn't carry over, since it's specific to that distribution's week.
+      const oldDist=getDistById(a.distId);
+      if(oldDist){
+        oldDist.checkedIn=(oldDist.checkedIn||[]).filter(i=>i!==a.id);
+        oldDist.pickOrder=(oldDist.pickOrder||[]).filter(k=>k!==`solo:${a.id}`&&k!==`group:${a.group}`);
+        oldDist.lateSlots=(oldDist.lateSlots||[]).filter(k=>k!==`solo:${a.id}`&&k!==`group:${a.group}`);
+        delete (oldDist.orderStatus||{})[a.id];
+      }
+      a.distId=newDistId;
+    }
+    closeModal('m-edit-agency');
+    refreshAfterRosterChange();
+  };
+  openModal('m-edit-agency');
+  setTimeout(()=>document.getElementById('ea-name').focus(),200);
+}
+
+// LOTTERY
+function buildLotterySlots(d){
+  const cset=new Set(d.checkedIn||[]);
+  const agencies=getDistAgencies(d).filter(a=>cset.has(a.id));
+  const groupMap={};
+  const solos=[];
+  agencies.forEach(a=>{
+    if(a.group){if(!groupMap[a.group])groupMap[a.group]=[];groupMap[a.group].push(a);}
+    else{solos.push(a);}
+  });
+  const slots=[];
+  Object.entries(groupMap).forEach(([name,ags])=>slots.push({type:'group',name,agencies:ags}));
+  solos.forEach(a=>slots.push({type:'solo',agency:a}));
+  return slots;
+}
+function slotDisplay(slot){
+  if(slot.type==='group'){
+    const members=slot.agencies.map(a=>(a.num?a.num+' ':'')+a.name).join(', ');
+    return `<strong>👥 ${slot.name}</strong>&nbsp;<span style="font-size:12px;color:var(--gray-500);">(${members})</span>`;
+  }
+  const a=slot.agency;
+  return `${a.num?`<span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);margin-right:4px">${a.num}</span>`:''}${a.name}`;
+}
+function slotAlloc(slot,alloc,unit){
+  if(slot.type==='group'){
+    const total=alloc.perAgency*slot.agencies.length;
+    return `<span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue);margin-left:auto;padding-left:8px;">${total} ${unit}</span><span style="font-size:11px;color:var(--gray-500);margin-left:4px;">(${slot.agencies.length}×${alloc.perAgency})</span>`;
+  }
+  return `<span style="font-family:'DM Mono',monospace;font-size:12px;font-weight:600;color:var(--blue);margin-left:auto;padding-left:8px;">${alloc.perAgency} ${unit}</span>`;
+}
+function slotsFromPickOrder(d){
+  const slots=buildLotterySlots(d);
+  return (d.pickOrder||[]).map(key=>{
+    if(key.startsWith('group:')){const name=key.slice(6);return slots.find(s=>s.type==='group'&&s.name===name);}
+    else{const aid=key.slice(5);return slots.find(s=>s.type==='solo'&&s.agency.id===aid);}
+  }).filter(Boolean);
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr;
+}
+function runLottery(){
+  const d=getDist();if(!d)return;
+  const slots=buildLotterySlots(d);
+  const el=document.getElementById('lottery-result');
+  if(slots.length<2){el.innerHTML='<div class="card card-pad" style="color:var(--gray-700);">Check in at least 2 agencies (or groups) first.</div>';return}
+  const sh=shuffle([...slots]);
+  d.pickOrder=sh.map(s=>s.type==='group'?`group:${s.name}`:`solo:${s.agency.id}`);
+  d.lateSlots=[];
+  save();
+  let h=`<div class="lballs">`;sh.forEach((_,i)=>h+=`<div class="lball" style="animation-delay:${i*0.08}s">${i+1}</div>`);h+=`</div>`;
+  h+=`<div class="section-hdr" style="margin-top:8px;">Pick order</div><div class="card" style="overflow:hidden;max-width:560px;">`;
+  sh.forEach((slot,i)=>{
+    const bg=i===0?'background:var(--blue-pale)':'';
+    const numBg=i===0?'var(--blue)':'var(--gray-200)';
+    const numCol=i===0?'white':'var(--gray-700)';
+    h+=`<div class="row-item" style="${bg}">
+      <div style="width:28px;height:28px;border-radius:50%;background:${numBg};color:${numCol};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${i+1}</div>
+      <div class="row-main"><div class="row-name" style="font-size:13px;">${slotDisplay(slot)}</div></div>
+    </div>`;
+  });
+  h+=`</div>`;el.innerHTML=h;renderDistHero();
+}
+function renderLottery(){
+  const d=getDist();if(!d)return;
+  const el=document.getElementById('lottery-result');
+  if(!(d.pickOrder||[]).length){el.innerHTML='';return}
+  const ord=slotsFromPickOrder(d);
+  if(!ord.length){el.innerHTML='';return}
+  let h=`<div class="lballs">`;ord.forEach((_,i)=>h+=`<div class="lball">${i+1}</div>`);h+=`</div>`;
+  h+=`<div class="section-hdr" style="margin-top:8px;">Pick order</div><div class="card" style="overflow:hidden;max-width:560px;">`;
+  ord.forEach((slot,i)=>{
+    const bg=i===0?'background:var(--blue-pale)':'';
+    const numBg=i===0?'var(--blue)':'var(--gray-200)';
+    const numCol=i===0?'white':'var(--gray-700)';
+    const lateBadge=(d.lateSlots||[]).includes(d.pickOrder[i])?'<span style="font-size:10px;background:#FEF3DC;color:#C47A1E;font-weight:600;padding:1px 6px;border-radius:100px;margin-left:6px;">Late</span>':'';
+    h+=`<div class="row-item" style="${bg}">
+      <div style="width:28px;height:28px;border-radius:50%;background:${numBg};color:${numCol};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${i+1}</div>
+      <div class="row-main"><div class="row-name" style="font-size:13px;">${slotDisplay(slot)}${lateBadge}</div></div>
+    </div>`;
+  });
+  h+=`</div>`;el.innerHTML=h;
+}
+
+// PALLETS
+function openAddPallet(){
+  ['ap-matnum','ap-desc','ap-manual','ap-wt','ap-uwt'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';}});
+  newPType='cases';document.getElementById('ap-cases').classList.add('active');document.getElementById('ap-bin').classList.remove('active');
+  document.getElementById('cases-sec').style.display='block';document.getElementById('bin-sec').style.display='none';
+  populatePresetDropdown();
+  document.getElementById('ap-preset').value='';
+  openModal('m-add-pallet');setTimeout(()=>document.getElementById('ap-matnum').focus(),200);
+}
+function setPType(t){
+  newPType=t;document.getElementById('ap-cases').classList.toggle('active',t==='cases');document.getElementById('ap-bin').classList.toggle('active',t==='bin');
+  document.getElementById('cases-sec').style.display=t==='cases'?'block':'none';document.getElementById('bin-sec').style.display=t==='bin'?'block':'none';
+}
+function addPallet(){
+  const desc=document.getElementById('ap-desc').value.trim();if(!desc)return;
+  const matEl=document.getElementById('ap-matnum');
+  const materialNumber=matEl.value.trim();
+  if(!materialNumber){matEl.style.borderColor='var(--red)';matEl.focus();return;}
+  matEl.style.borderColor='';
+  const d=getDist();if(!d)return;let qty=0;
+  if(newPType==='cases'){
+    qty=parseFloat(document.getElementById('ap-manual').value)||0;
+  }else{
+    const wt=parseFloat(document.getElementById('ap-wt').value)||0,uw=parseFloat(document.getElementById('ap-uwt').value)||1;qty=uw>0?wt/uw:0;
+  }
+  const finalQty=newPType==='cases'?Math.floor(qty):Math.round(qty*100)/100;
+  d.pallets=d.pallets||[];d.pallets.push({id:uid(),desc,materialNumber,type:newPType,qty:finalQty});
+  // If this material number isn't already in the library (e.g. typed manually instead of
+  // picked from a preset), add it now so it shows up as a preset going forward. The library
+  // entry is the source of truth going forward — this pallet's own description is never
+  // retroactively changed even if the library entry gets edited later.
+  const libItems=getLibItems();
+  if(!libItems.find(i=>(i.materialNumber||'').toLowerCase()===materialNumber.toLowerCase())){
+    libItems.push({name:desc,materialNumber});
+    libItems.sort((a,b)=>a.name.localeCompare(b.name));
+    db.itemLibrary=libItems;
+  }
+  save();closeModal('m-add-pallet');renderPallets();renderDistHero();
+}
+function removePallet(id){const d=getDist();if(!d)return;d.pallets=(d.pallets||[]).filter(p=>p.id!==id);delete (d.palletsDone||{})[id];save();renderPallets();renderDistHero()}
+function togglePalletDone(id){const d=getDist();if(!d)return;d.palletsDone=d.palletsDone||{};d.palletsDone[id]=!d.palletsDone[id];save();renderPallets();renderDistHero()}
+function openEditPalletQty(id){
+  const d=getDist();if(!d)return;
+  const p=d.pallets.find(x=>x.id===id);if(!p)return;
+  document.getElementById('ep-desc').textContent=p.desc;
+  document.getElementById('ep-qty').value=p.qty;
+  document.getElementById('ep-save').onclick=()=>{
+    const raw=parseFloat(document.getElementById('ep-qty').value);
+    if(isNaN(raw)||raw<0)return;
+    p.qty=p.type==='cases'?Math.floor(raw):Math.round(raw*100)/100;
+    save();closeModal('m-edit-pallet');renderPallets();renderDistHero();
+  };
+  openModal('m-edit-pallet');
+  setTimeout(()=>{const el=document.getElementById('ep-qty');el.focus();el.select();},200);
+}
+function confirmCloseWeek(){
+  const d=getDist();if(!d)return;
+  const missingMatNum=(d.pallets||[]).filter(p=>!p.materialNumber).length;
+  const nextDate=advanceToNextOccurrence(d.date||todayStr(),d.dayOfWeek);
+  document.getElementById('conf-title').textContent='Close This Week?';
+  document.getElementById('conf-msg').innerHTML=`This will save a report, download a copy, and then clear all check-ins, the lottery order, order flags, and pallets for "${d.name}". Agencies and groups will be kept for next week. The distribution date will advance to ${fmtDateShort(nextDate)}${d.dayOfWeek===undefined||d.dayOfWeek===null?' (no usual day set for this distribution yet — just added 7 days; set one in Manage Distributions for it to self-correct)':''}.`
+    +(missingMatNum?`<div style="margin-top:10px;color:#92400e;font-weight:600;">⚠ ${missingMatNum} pallet(s) here have no material number — they'll still be saved, but won't be usable in the CERES allocation upload later.</div>`:'');
+  document.getElementById('conf-ok').textContent='Close Week';
+  document.getElementById('conf-ok').className='btn btn-danger';
+  document.getElementById('conf-ok').onclick=()=>{
+    const report=saveReportSnapshot(d);
+    downloadReportHTML(report);
+    d.checkedIn=[];
+    d.pickOrder=[];
+    d.lateSlots=[];
+    d.pallets=[];
+    d.palletsDone={};
+    d.orderStatus={};
+    if(d.orderForm){d.orderForm.items=[];d.orderForm.lastSentAt=null;}
+    d.date=nextDate;
+    save();closeModal('m-confirm');
+    renderDistHero();renderCheckin();renderSidebar();
+    switchTab('checkin',document.getElementById('nav-checkin'));
+  };
+  openModal('m-confirm');
+}
+function togglePalletBody(id){
+  const body=document.getElementById('pb-'+id),chev=document.getElementById('pc-'+id),open=body.classList.contains('open');
+  document.querySelectorAll('.pacc-body').forEach(b=>b.classList.remove('open'));
+  document.querySelectorAll('.pchev').forEach(c=>c.classList.remove('open'));
+  if(!open){body.classList.add('open');chev.classList.add('open')}
+}
+function renderPallets(){
+  const d=getDist();if(!d)return;renderDistHero();
+  const cont=document.getElementById('pallet-list');cont.innerHTML='';
+  if(!(d.pallets||[]).length){cont.innerHTML='<div style="text-align:center;padding:28px 0;color:var(--gray-500);"><div style="font-weight:600;color:var(--gray-700);margin-bottom:4px;">No pallets yet</div>Add pallets below.</div>';return}
+  const omap=d.orderStatus||{};
+  const ordSlots=slotsFromPickOrder(d);
+  (d.pallets||[]).forEach((p,i)=>{
+    const alloc=calcAlloc(d,p.qty);
+    const unit=p.type==='bin'?'units':'cases';
+    const leftover=alloc.leftover;
+    const allocSummary=alloc.count
+      ?`${alloc.perAgency} ${unit} each · ${alloc.count} agencies${leftover>0?` · ${leftover} leftover`:''}`
+      :`no agencies checked in`;
+    const allocBoxes=`<div style="display:flex;gap:8px;padding:14px 18px;">
+      <div class="alloc-box" style="flex:1;margin:0;">
+        <div class="alloc-val">${alloc.perAgency} <span style="font-size:20px">${unit}</span></div>
+        <div class="alloc-lbl">per agency (${alloc.count} checked-in agencies)</div>
+      </div>
+      ${leftover>0?`<div class="alloc-box" style="flex:0;min-width:80px;margin:0;background:#FEF3DC;">
+        <div class="alloc-val" style="font-size:28px;color:#C47A1E;">${leftover}</div>
+        <div class="alloc-lbl">leftover</div>
+      </div>`:''}
+    </div>`;
+    const done=!!(d.palletsDone||{})[p.id];
+    const pickRows=ordSlots.length?ordSlots.map((slot,idx)=>{
+      const hasOrder=slot.type==='solo'&&omap[slot.agency.id];
+      const orderIcon=hasOrder?'<span style="font-size:11px;color:var(--purple);margin-left:3px">📋</span>':'';
+      return `<div class="pick-row">
+        <div class="pick-n">${idx+1}</div>
+        <span style="flex:1;font-size:13px;">${slotDisplay(slot)}${orderIcon}</span>
+        ${slotAlloc(slot,alloc,unit)}
+      </div>`;
+    }).join(''):`<div style="padding:12px 18px;font-size:13px;color:var(--gray-500);font-style:italic">Run the lottery to see pick order.</div>`;
+    const acc=document.createElement('div');acc.className='pacc';acc.style.opacity=done?'0.6':'1';
+    acc.innerHTML=`
+      <div class="pacc-head" onclick="togglePalletBody('${p.id}')">
+        <div class="pnum ${done?'done':''}">${i+1}</div>
+        <div class="pacc-info">
+          <div class="pacc-title">${p.materialNumber?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${p.materialNumber}</span>`:''}${p.desc} <span class="badge ${p.type==='bin'?'b-bin':'b-cases'}" style="font-size:10px;padding:1px 7px">${p.type==='bin'?'Bin':'Cases'}</span></div>
+          <div class="pacc-sub">${p.qty} ${unit} total · ${allocSummary} · ${done?'Complete':'Pending'}</div>
+        </div>
+        ${done?'<span class="badge b-done">Done</span>':''}
+        <span class="pchev" id="pc-${p.id}">›</span>
+      </div>
+      <div class="pacc-body" id="pb-${p.id}">
+        ${allocBoxes}
+        <div style="padding:8px 0">
+          <div style="padding:0 18px 6px"><div class="section-hdr" style="margin:0">Pick order &amp; allocation</div></div>
+          ${pickRows}
+        </div>
+        <div style="padding:10px 18px;display:flex;gap:8px">
+          <button class="btn ${done?'':'btn-green'} btn-sm" style="flex:1" onclick="togglePalletDone('${p.id}');event.stopPropagation()">${done?'Mark Incomplete':'✓ Mark Complete'}</button>
+          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--blue);border-color:var(--blue)" onclick="openEditPalletQty('${p.id}');event.stopPropagation()">✏ Qty</button>
+          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--red);border-color:var(--red)" onclick="removePallet('${p.id}');event.stopPropagation()">✕</button>
+        </div>
+      </div>`;
+    cont.appendChild(acc);
+  });
+}
+
+// SETTINGS
+function renderSettings(){
+  const d=getDist();if(!d)return;
+  document.getElementById('s-name').value=d.name||'';
+  document.getElementById('s-date').value=d.date||todayStr();
+  document.getElementById('s-notes').value=d.notes||'';
+  checkDateMismatch(d);
+}
+function checkDateMismatch(d){
+  const el=document.getElementById('s-date-mismatch');
+  if(d.dayOfWeek===undefined||d.dayOfWeek===null||d.dayOfWeek===''||!d.date){el.style.display='none';return;}
+  const actual=dowOf(d.date);
+  if(actual!==d.dayOfWeek){
+    el.textContent=`Heads up — this date falls on a ${DOW_NAMES[actual]}, not this distribution's usual ${DOW_NAMES[d.dayOfWeek]}. (Fine for a holiday shift — just flagging it.)`;
+    el.style.display='block';
+  }else{
+    el.style.display='none';
+  }
+}
+function autoSave(){
+  const d=getDist();if(!d)return;
+  d.name=document.getElementById('s-name').value.trim()||d.name;
+  d.date=document.getElementById('s-date').value||d.date;
+  d.notes=document.getElementById('s-notes').value;
+  save();
+  document.getElementById('t-title').textContent=d.name;
+  document.getElementById('t-sub').textContent=d.date?fmtDateShort(d.date):'';
+  checkDateMismatch(d);
+  renderDistHero();renderSidebar();
+}
+function confirmDelete(){
+  const d=getDist();if(!d)return;
+  document.getElementById('conf-title').textContent='Delete Distribution?';
+  document.getElementById('conf-msg').textContent=`"${d.name}" and all its data will be permanently deleted.`;
+  document.getElementById('conf-ok').onclick=()=>{
+    closeModal('m-confirm');
+    removeManagedDist(cur);
+  };
+  openModal('m-confirm');
+}
+
+// PRINT REPORT
+function buildReportHTML(d){
+  const cset=new Set(d.checkedIn||[]);
+  const omap=d.orderStatus||{};
+  const allAgencies=[...getDistAgencies(d)].sort((a,b)=>a.name.localeCompare(b.name));
+  const checkedIn=allAgencies.filter(a=>cset.has(a.id));
+
+  const agencyRows=allAgencies.map(a=>{
+    const checked=cset.has(a.id);
+    const hasOrder=!!omap[a.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.num||''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.name}${a.group?` <span style="font-size:11px;color:#C47A1E;">(${a.group})</span>`:''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${checked?'✓':''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${hasOrder?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  const palletRows=(d.pallets||[]).map((p,i)=>{
+    const alloc=calcAlloc(d,p.qty);
+    const unit=p.type==='bin'?'units':'cases';
+    const done=!!(d.palletsDone||{})[p.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${i+1}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.materialNumber||'<span style="color:#C47A1E;">⚠ missing</span>'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.desc}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.qty} ${unit}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${alloc.count}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;"><strong>${alloc.perAgency} ${unit} each${alloc.leftover>0?` · ${alloc.leftover} leftover`:''}</strong></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${done?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="font-family:'DM Sans',sans-serif;color:#202124;">
+      <div class="pr-header" style="background:#2D1B69;color:white;padding:20px 24px;margin-bottom:20px;page-break-after:avoid;">
+        <div style="font-size:11px;opacity:0.5;margin-bottom:4px;letter-spacing:0.06em;font-family:monospace;">DISTRIBUTION REPORT · ${d.date?fmtDateShort(d.date)+' · ':''}Generated ${fmtNow()}</div>
+        <div style="font-size:22px;font-weight:700;">${d.name}</div>
+        <div style="margin-top:10px;font-size:13px;opacity:0.8;display:flex;gap:24px;">
+          <span>${checkedIn.length} of ${allAgencies.length} agencies checked in</span>
+          <span>${(d.pallets||[]).length} pallets</span>
+          <span>${Object.values(d.orderStatus||{}).filter(Boolean).length} orders</span>
+        </div>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Agencies</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agency #</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Name</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Checked In</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Order Pickup</th>
+            </tr>
+          </thead>
+          <tbody>${agencyRows||'<tr><td colspan="4" style="padding:12px;color:#9AA0A6;font-style:italic;">No agencies</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Pallet Allocations</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">#</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Material #</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Description</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Total</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agencies</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Per Agency</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Done</th>
+            </tr>
+          </thead>
+          <tbody>${palletRows||'<tr><td colspan="7" style="padding:12px;color:#9AA0A6;font-style:italic;">No pallets</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      ${d.notes?`<div class="pr-section"><h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Notes</h3><div style="font-size:13px;color:#202124;white-space:pre-wrap;padding:12px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E8EAED;">${d.notes}</div></div>`:''}
+    </div>`;
+}
+// Structured rows shaped for the future CERES allocation upload: agency #, material #, qty, date.
+function buildAllocationRows(d){
+  const cset=new Set(d.checkedIn||[]);
+  const checkedInAgencies=getDistAgencies(d).filter(a=>cset.has(a.id));
+  const rows=[];
+  (d.pallets||[]).forEach(p=>{
+    const alloc=calcAlloc(d,p.qty);
+    if(alloc.count<=0||alloc.perAgency<=0)return;
+    checkedInAgencies.forEach(a=>{
+      rows.push({agencyNum:a.num||'',materialNumber:p.materialNumber||'',description:p.desc,qty:alloc.perAgency,date:d.date||todayStr()});
+    });
+  });
+  return rows;
+}
+function saveReportSnapshot(d){
+  const report={id:uid(),distId:d.id,distName:d.name,date:d.date||todayStr(),generatedAt:new Date().toISOString(),html:buildReportHTML(d),allocations:buildAllocationRows(d)};
+  db.reports=db.reports||[];
+  db.reports.unshift(report);
+  return report;
+}
+function downloadReportHTML(report){
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${report.distName} — ${report.date}</title></head><body>${report.html}</body></html>`;
+  const blob=new Blob([fullHtml],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`${(report.distName||'distribution').replace(/[^a-z0-9]+/gi,'_')}_${report.date}.html`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function printReport(){
+  const d=getDist();if(!d)return;
+  document.getElementById('print-report').innerHTML=buildReportHTML(d);
+  window.print();
+}
+
+// REPORTS LIST (past closed-week snapshots)
+function openReportsList(){
+  renderReportsList();
+  openModal('m-reports-list');
+}
+function renderReportsList(){
+  const el=document.getElementById('reports-list');
+  const reports=db.reports||[];
+  if(!reports.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No closed-week reports yet. They are created automatically when you close a week.</div>';
+    return;
+  }
+  el.innerHTML='<div class="card" style="margin:0;">'
+    +reports.map(r=>`
+      <div class="row-item" style="align-items:center;">
+        <div class="row-main">
+          <div style="font-size:14px;font-weight:500;">${r.distName}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${fmtDateShort(r.date)} · ${r.allocations.length} allocation rows</div>
+        </div>
+        <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:6px 12px;margin-right:6px;" onclick="viewReport('${r.id}')">View / Print</button>
+        <button onclick="deleteReport('${r.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+      </div>`).join('')
+    +'</div>';
+}
+function viewReport(id){
+  const r=(db.reports||[]).find(x=>x.id===id);if(!r)return;
+  closeModal('m-reports-list');
+  document.getElementById('print-report').innerHTML=r.html;
+  window.print();
+}
+function deleteReport(id){
+  db.reports=(db.reports||[]).filter(x=>x.id!==id);
+  save();renderReportsList();
+}
+
+// ITEM LIBRARY
+function getLibItems(){return db.itemLibrary||[];}
+function saveLibItems(items){db.itemLibrary=items;save();}
+function openItemLibrary(){
+  editingLibKey=null;
+  renderLibList();
+  document.getElementById('lib-new-name').value='';
+  document.getElementById('lib-new-matnum').value='';
+  openModal('m-item-library');
+  setTimeout(()=>document.getElementById('lib-new-matnum').focus(),200);
+}
+let libSort={field:'name',dir:1};
+let editingLibKey=null; // materialNumber of the row currently being edited, if any
+function setLibSort(field){
+  if(libSort.field===field)libSort.dir*=-1;else{libSort.field=field;libSort.dir=1;}
+  renderLibList();
+}
+function renderLibList(){
+  const items=getLibItems();
+  const el=document.getElementById('lib-list');
+  const arrow=f=>libSort.field===f?(libSort.dir===1?' ▲':' ▼'):'';
+  const header=`<div style="display:flex;gap:16px;padding:6px 14px;font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.04em;">
+    <span onclick="setLibSort('mat')" style="cursor:pointer;width:110px;">Material #${arrow('mat')}</span>
+    <span onclick="setLibSort('name')" style="cursor:pointer;flex:1;">Description${arrow('name')}</span>
+  </div>`;
+  if(!items.length){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--gray-500);font-size:13px;border:1px dashed var(--gray-300);border-radius:var(--r-md);">No items yet. Add your first item below.</div>';
+    return;
+  }
+  const sorted=[...items].sort((a,b)=>{
+    let av,bv;
+    if(libSort.field==='mat'){av=(a.materialNumber||'').toLowerCase();bv=(b.materialNumber||'').toLowerCase();}
+    else{av=(a.name||'').toLowerCase();bv=(b.name||'').toLowerCase();}
+    return av<bv?-libSort.dir:av>bv?libSort.dir:0;
+  });
+  el.innerHTML=header+'<div class="card" style="margin:0;">'
+    +sorted.map(item=>{
+      const key=item.materialNumber||'';
+      if(editingLibKey===key){
+        return `<div class="row-item" style="align-items:center;">
+          <div class="row-main" style="display:flex;gap:8px;align-items:center;">
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);flex-shrink:0;">${item.materialNumber||''}</span>
+            <input type="text" id="lib-edit-input" value="${item.name.replace(/"/g,'&quot;')}" style="flex:1;padding:6px 8px;font-size:14px;" onkeydown="if(event.key==='Enter')saveEditLibItem('${key}');if(event.key==='Escape')cancelEditLibItem();">
+          </div>
+          <button class="btn btn-sm btn-primary" style="width:auto;flex-shrink:0;padding:5px 12px;margin-right:6px;" onclick="saveEditLibItem('${key}')">Save</button>
+          <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:5px 12px;" onclick="cancelEditLibItem()">Cancel</button>
+        </div>`;
+      }
+      return `<div class="row-item" style="align-items:center;">
+        <div class="row-main" style="font-size:14px;font-weight:500;">${item.materialNumber?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${item.materialNumber}</span>`:'<span style="font-size:11px;color:#C47A1E;font-weight:600;margin-right:6px;">⚠ needs material #</span>'}${item.name}</div>
+        <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:5px 12px;margin-right:6px;" onclick="startEditLibItem('${key}')">Edit</button>
+        <button onclick="removeLibItem('${key}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
+      </div>`;
+    }).join('')
+    +'</div>';
+  if(editingLibKey!==null){
+    const inp=document.getElementById('lib-edit-input');
+    if(inp){inp.focus();inp.select();}
+  }
+}
+function startEditLibItem(key){editingLibKey=key;renderLibList();}
+function cancelEditLibItem(){editingLibKey=null;renderLibList();}
+function saveEditLibItem(key){
+  const inp=document.getElementById('lib-edit-input');if(!inp)return;
+  const newName=inp.value.trim();if(!newName)return;
+  const items=getLibItems();
+  const item=items.find(i=>(i.materialNumber||'')===key);
+  if(item)item.name=newName;
+  items.sort((a,b)=>a.name.localeCompare(b.name));
+  saveLibItems(items);
+  editingLibKey=null;
+  renderLibList();
+}
+function removeLibItem(key){
+  const items=getLibItems().filter(i=>(i.materialNumber||'')!==key);
+  saveLibItems(items);
+  renderLibList();
+}
+function addLibItem(){
+  const name=document.getElementById('lib-new-name').value.trim();
+  const matEl=document.getElementById('lib-new-matnum');
+  const matnum=matEl.value.trim();
+  if(!name)return;
+  if(!matnum){matEl.style.borderColor='var(--red)';matEl.focus();return;}
+  matEl.style.borderColor='';
+  const items=getLibItems();
+  if(items.find(i=>(i.materialNumber||'').toLowerCase()===matnum.toLowerCase())){matEl.style.borderColor='var(--red)';matEl.focus();return;}
+  items.push({name,materialNumber:matnum});
+  items.sort((a,b)=>a.name.localeCompare(b.name));
+  saveLibItems(items);
+  document.getElementById('lib-new-name').value='';
+  matEl.value='';
+  renderLibList();
+}
+let currentPresetItems=[];
+function populatePresetDropdown(){
+  const sel=document.getElementById('ap-preset');
+  currentPresetItems=[...getLibItems()].sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">— choose an item —</option>'
+    +currentPresetItems.map((i,idx)=>`<option value="${idx}">${i.materialNumber?i.materialNumber+' — ':'⚠ '}${i.name}</option>`).join('');
+}
+function applyPreset(){
+  const val=document.getElementById('ap-preset').value;
+  if(val==='')return;
+  const item=currentPresetItems[parseInt(val,10)];
+  if(!item)return;
+  document.getElementById('ap-desc').value=item.name;
+  document.getElementById('ap-matnum').value=item.materialNumber||'';
+}
+
+// MODALS
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+</script>
+<script src="order-form.js"></script>
+<script>
+OrderForm.init({getDb:()=>db,getDist:()=>getDist(),persist:save});
+load();
+</script>
+</body>
+</html>
