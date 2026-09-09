@@ -73,13 +73,43 @@ function activate() {
     }
 }
 
+function findItem(id) {
+    return items.find(i => String(i.id) === String(id));
+}
+
+function newItemId() {
+    return Date.now() + Math.floor(Math.random() * 1000);
+}
+
+// Pull live field values out of the table so Save / Send to Pallets
+// still work if the last edit hasn't blurred yet (onchange hasn't fired).
+function syncItemsFromDom() {
+    document.querySelectorAll('#of-itemsContainer tr[data-row-id]').forEach(row => {
+        const item = findItem(row.dataset.rowId);
+        if (!item) return;
+        const num = row.querySelector('.col-itemNum');
+        const pallet = row.querySelector('.col-palletNum');
+        const desc = row.querySelector('.col-description');
+        const qty = row.querySelector('.col-needToPull');
+        const unit = row.querySelector('.col-pullUnit');
+        if (num) item.itemNum = num.value;
+        if (pallet) item.palletNum = pallet.value;
+        if (desc) item.description = desc.value;
+        if (qty) item.needToPull = qty.value;
+        if (unit) item.pullUnit = unit.value;
+    });
+}
+
 function getItems() {
+    syncItemsFromDom();
     return items.map(it => ({ ...it }));
 }
 
 function flush() {
+    syncItemsFromDom();
     saveData();
 }
+
 const DEFAULT_LOCATIONS = [
     { name: 'Perish Dist: Oroville', code: 'PEDI-B1001' },
     { name: 'Perish Dist: Chico', code: 'PEDI-B1002' },
@@ -526,6 +556,7 @@ function hasAnyItemData(itemsArr) {
 // switching to a different scheduled order. Reprinting/re-editing
 // the same order number updates that entry instead of duplicating it.
 function logCurrentOrder() {
+    syncItemsFromDom();
     if (!hasAnyItemData(items)) return;
 
     const location = document.getElementById('of-location').value;
@@ -551,6 +582,7 @@ function logCurrentOrder() {
 // or downloading anything — separate from Export/Download, which
 // are purely for generating an Excel file.
 function saveCurrentOrder() {
+    syncItemsFromDom();
     if (!hasAnyItemData(items)) {
         showImportStatus('Nothing to save yet — add at least one item first.', 'error');
         return;
@@ -881,7 +913,7 @@ function loadData() {
     formData.location = of.location || deriveLocationFromDist(dist);
     formData.date = dist.date || Shared.todayStr();
     formData.orderNumber = of.orderNumber || '';
-    formData.items = (of.items || []).map(item => ({ ...item, id: item.id || Shared.uid() }));
+    formData.items = (of.items || []).map(item => ({ ...item, id: item.id || newItemId() }));
     const locEl = document.getElementById('of-location');
     const dateEl = document.getElementById('of-date');
     const numEl = document.getElementById('of-orderNumber');
@@ -1121,7 +1153,7 @@ function showImportStatus(message, type) {
 
 function addItem() {
     items.unshift({
-        id: Shared.uid(),
+        id: newItemId(),
         itemNum: '',
         palletNum: '',
         description: '',
@@ -1136,13 +1168,13 @@ function addItem() {
 }
 
 function removeItem(id) {
-    const item = items.find(i => i.id === id);
+    const item = findItem(id);
     const hasData = item && (item.itemNum || item.description || item.palletNum || item.needToPull || item.pullUnit || item.qtyPulled || item.returned || item.used);
     if (hasData) {
         const label = [item.itemNum, item.description].filter(Boolean).join(' — ') || 'this item';
         if (!confirm(`Remove ${label} from this order?`)) return;
     }
-    items = items.filter(item => item.id !== id);
+    items = items.filter(item => String(item.id) !== String(id));
     renderItems();
     saveData();
 }
@@ -1249,7 +1281,7 @@ function isAtFieldEdge(el, direction) {
 function handleArrowNav(event, id, colClass) {
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         const rows = Array.from(document.querySelectorAll('#of-itemsContainer tr[data-row-id]'));
-        const currentIndex = rows.findIndex(row => Number(row.dataset.rowId) === id);
+        const currentIndex = rows.findIndex(row => String(row.dataset.rowId) === String(id));
         if (currentIndex === -1) return;
         const targetIndex = event.key === 'ArrowUp' ? currentIndex - 1 : currentIndex + 1;
         if (targetIndex < 0 || targetIndex >= rows.length) return;
@@ -1281,7 +1313,7 @@ function handleArrowNav(event, id, colClass) {
 // automatically adds a new row and moves focus into it, for quick continuous entry.
 function handleLastFieldKeydown(event, id) {
     if (event.key !== 'Tab' || event.shiftKey) return;
-    const isLastRow = items.length > 0 && items[items.length - 1].id === id;
+    const isLastRow = items.length > 0 && String(items[items.length - 1].id) === String(id);
     if (!isLastRow) return;
     event.preventDefault();
     addItem();
@@ -1293,7 +1325,7 @@ function handleLastFieldKeydown(event, id) {
 }
 
 function updateItem(id, field, value) {
-    const item = items.find(i => i.id === id);
+    const item = findItem(id);
     if (item) {
         item[field] = value;
         saveData();
@@ -1364,17 +1396,17 @@ function renderItems() {
     items.forEach(item => {
         html += `
             <tr data-row-id="${item.id}">
-                <td><input type="text" class="table-input col-itemNum item-num-input" list="of-produceNumList" value="${Shared.escapeHtml(item.itemNum)}" onchange="OrderForm.handleItemNumChange(${item.id}, this.value)" oninput="OrderForm.uppercaseInput(this)" onkeydown="OrderForm.handleArrowNav(event, ${item.id}, 'col-itemNum')" placeholder="e.g. APPL-D003"></td>
-                <td><input type="text" class="table-input col-palletNum" value="${Shared.escapeHtml(item.palletNum)}" onchange="OrderForm.updateItem(${item.id}, 'palletNum', this.value)" onkeydown="OrderForm.handleArrowNav(event, ${item.id}, 'col-palletNum')" placeholder="e.g. P1234"></td>
-                <td><input type="text" class="table-input col-description description-input" list="of-produceDescList" value="${Shared.escapeHtml(item.description)}" onchange="OrderForm.handleDescriptionChange(${item.id}, this.value)" onkeydown="OrderForm.handleArrowNav(event, ${item.id}, 'col-description')" placeholder="Start typing produce name..."></td>
+                <td><input type="text" class="table-input col-itemNum item-num-input" list="of-produceNumList" value="${Shared.escapeHtml(item.itemNum)}" onchange="OrderForm.handleItemNumChange('${item.id}', this.value)" oninput="OrderForm.uppercaseInput(this)" onkeydown="OrderForm.handleArrowNav(event, '${item.id}', 'col-itemNum')" placeholder="e.g. APPL-D003"></td>
+                <td><input type="text" class="table-input col-palletNum" value="${Shared.escapeHtml(item.palletNum)}" onchange="OrderForm.updateItem('${item.id}', 'palletNum', this.value)" onkeydown="OrderForm.handleArrowNav(event, '${item.id}', 'col-palletNum')" placeholder="e.g. P1234"></td>
+                <td><input type="text" class="table-input col-description description-input" list="of-produceDescList" value="${Shared.escapeHtml(item.description)}" onchange="OrderForm.handleDescriptionChange('${item.id}', this.value)" onkeydown="OrderForm.handleArrowNav(event, '${item.id}', 'col-description')" placeholder="Start typing produce name..."></td>
                 <td style="display: flex; gap: 4px; padding: 6px; overflow: hidden;">
-                    <input type="number" min="0" step="1" inputmode="numeric" pattern="[0-9]*" class="table-input col-needToPull" value="${Shared.escapeHtml(item.needToPull)}" onchange="OrderForm.updateItem(${item.id}, 'needToPull', this.value)" oninput="OrderForm.sanitizeQtyInput(this)" onkeydown="OrderForm.handleArrowNav(event, ${item.id}, 'col-needToPull')" placeholder="Qty" style="flex: 1 1 0; min-width: 0;">
-                    <select class="table-input col-pullUnit" onchange="OrderForm.updateItem(${item.id}, 'pullUnit', this.value)" onkeydown="OrderForm.handleArrowNav(event, ${item.id}, 'col-pullUnit'); handleLastFieldKeydown(event, ${item.id})" style="flex: 0 0 52px; padding-left: 2px; padding-right: 2px;"><option value="">Unit</option><option value="PLT" ${item.pullUnit === 'PLT' ? 'selected' : ''}>PLT</option><option value="BIN" ${item.pullUnit === 'BIN' ? 'selected' : ''}>BIN</option><option value="CS" ${item.pullUnit === 'CS' ? 'selected' : ''}>CS</option><option value="LBS" ${item.pullUnit === 'LBS' ? 'selected' : ''}>LBS</option></select>
+                    <input type="number" min="0" step="1" inputmode="numeric" pattern="[0-9]*" class="table-input col-needToPull" value="${Shared.escapeHtml(item.needToPull)}" onchange="OrderForm.updateItem('${item.id}', 'needToPull', this.value)" oninput="OrderForm.sanitizeQtyInput(this); OrderForm.updateItem('${item.id}', 'needToPull', this.value)" onkeydown="OrderForm.handleArrowNav(event, '${item.id}', 'col-needToPull')" placeholder="Qty" style="flex: 1 1 0; min-width: 0;">
+                    <select class="table-input col-pullUnit" onchange="OrderForm.updateItem('${item.id}', 'pullUnit', this.value)" onkeydown="OrderForm.handleArrowNav(event, '${item.id}', 'col-pullUnit'); OrderForm.handleLastFieldKeydown(event, '${item.id}')" style="flex: 0 0 52px; padding-left: 2px; padding-right: 2px;"><option value="">Unit</option><option value="PLT" ${item.pullUnit === 'PLT' ? 'selected' : ''}>PLT</option><option value="BIN" ${item.pullUnit === 'BIN' ? 'selected' : ''}>BIN</option><option value="CS" ${item.pullUnit === 'CS' ? 'selected' : ''}>CS</option><option value="LBS" ${item.pullUnit === 'LBS' ? 'selected' : ''}>LBS</option></select>
                 </td>
                 <td style="background-color: #f9f9f9;" title="Filled in by hand on the printed sheet"></td>
                 <td style="background-color: #f9f9f9;" title="Filled in by hand on the printed sheet"></td>
                 <td style="background-color: #f9f9f9;" title="Filled in by hand on the printed sheet"></td>
-                <td class="action-col"><button class="btn-danger" onclick="OrderForm.removeItem(${item.id})">Remove</button></td>
+                <td class="action-col"><button class="btn-danger" onclick="OrderForm.removeItem('${item.id}')">Remove</button></td>
             </tr>
         `;
     });
@@ -1395,8 +1427,8 @@ function updateDuplicateWarnings() {
         counts[key] = (counts[key] || 0) + 1;
     });
     document.querySelectorAll('#of-itemsContainer tr[data-row-id]').forEach(row => {
-        const id = Number(row.dataset.rowId);
-        const item = items.find(it => it.id === id);
+        const id = row.dataset.rowId;
+        const item = findItem(id);
         const key = item ? (item.itemNum || '').trim().toLowerCase() : '';
         const isDup = !!(key && counts[key] > 1);
         row.classList.toggle('duplicate-item-row', isDup);

@@ -293,18 +293,20 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <button class="tab-btn" id="nav-settings" onclick="switchTab('settings',this)">⚙️ Settings</button>
       </div>
       <div id="tab-action-bar" style="display:none;padding:12px 24px;background:var(--white);border-bottom:1px solid var(--gray-200);flex-shrink:0;">
-        <button class="btn btn-primary" style="max-width:200px;" onclick="openAddPallet()">+ Add Pallet</button>
+        <div id="tab-action-pallets" style="display:none;">
+          <button class="btn btn-primary" style="max-width:200px;" onclick="openAddPallet()">+ Add Pallet</button>
+        </div>
+        <div id="tab-action-orderform" style="display:none;">
+          <div class="section-hdr" style="margin-bottom:8px;">Order Form <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400;">Optional prep step — send items to Pallets when ready</span></div>
+          <div class="btn-row" style="max-width:520px;">
+            <button class="btn btn-primary btn-sm" onclick="confirmSendToPallets()">➡ Send to Pallets</button>
+          </div>
+        </div>
       </div>
       <div id="scroll-area">
 
         <!-- ORDER FORM -->
         <div id="tab-orderform" class="screen">
-          <div class="sticky-toolbar">
-            <div class="section-hdr" style="margin-bottom:12px;">Order Form <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400;">Optional prep step — send items to Pallets when ready</span></div>
-            <div class="btn-row" style="max-width:520px;">
-              <button class="btn btn-primary btn-sm" onclick="confirmSendToPallets()">➡ Send to Pallets</button>
-            </div>
-          </div>
           <div id="of-editingView">
             <div class="top-actions">
               <div class="action-group">
@@ -1071,9 +1073,20 @@ function openDist(id){
   document.getElementById('tab-checkin').classList.add('active');
   document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('nav-checkin').classList.add('active');
-  document.getElementById('tab-action-bar').style.display='none';
+  setTabActionBar(null);
   renderSidebar();renderDistHero();renderCheckin();
   document.getElementById('scroll-area').scrollTop=0;
+}
+
+function setTabActionBar(tab){
+  const bar=document.getElementById('tab-action-bar');
+  const pal=document.getElementById('tab-action-pallets');
+  const of=document.getElementById('tab-action-orderform');
+  const showPallets=tab==='pallets';
+  const showOrder=tab==='orderform';
+  bar.style.display=(showPallets||showOrder)?'block':'none';
+  pal.style.display=showPallets?'block':'none';
+  of.style.display=showOrder?'block':'none';
 }
 
 function switchTab(tab,btn){
@@ -1082,7 +1095,7 @@ function switchTab(tab,btn){
   document.getElementById('tab-'+tab).classList.add('active');
   document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  document.getElementById('tab-action-bar').style.display=tab==='pallets'?'block':'none';
+  setTabActionBar(tab);
   document.getElementById('scroll-area').scrollTop=0;
   if(tab==='orderform'&&typeof OrderForm!=='undefined')OrderForm.activate();
   else if(tab==='checkin')renderCheckin();
