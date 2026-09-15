@@ -1,0 +1,5 @@
+node_modules/
+
+# Real distribution data pulled down for the parity harness. Contains live agency
+# names and numbers, and this repo is published to GitHub Pages — keep it local.
+RemoteDistro/mg/tools/data.json
