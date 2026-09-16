@@ -1,6 +1,6 @@
 # Data schema — v6 normalization
 
-**Status:** design agreed, not yet implemented. Phase 1 is the next build.
+**Status:** phase 1 implemented in `CheckinPallets_25_mg.html`. Phase 2 not started.
 **Applies to:** `CheckinPallets_25_mg.html` (v6) onward. v23/v4 and v24/v5 are unaffected.
 
 ---
@@ -91,7 +91,8 @@ in git — which matters when the backend *is* git.
 { "code": "PEDI-S2002", "name": "Perish Dist: Fairfield", "area": "S2", "active": true }
 
 // agencies.json — PK: code
-{ "code": "CAMI-S1001", "name": "CAMINAR: GATEWAY", "group": "Caminar", "active": true }
+{ "code": "CAMI-S1001", "name": "CAMINAR: GATEWAY", "group": "Caminar",
+  "scheduleIds": ["PEDI-S2002-WED"], "active": true, "legacyId": "1775242009388snvd" }
 
 // items.json — PK: materialNumber
 { "materialNumber": "APPL-D003",
@@ -114,14 +115,20 @@ explicit, never derived from the code.
   "dayOfWeek": 3,
   "cadence": "weekly",          // or "2nd-4th", per "Thursday VACAVILLE 2nd / 4th weeks"
   "label": "Fairfield Wednesday",
-  "agencyCodes": ["ARSU-S2001", "CAMI-S1001", "..."],
   "active": true }
 ```
 
-**The roster lives here, not on `sites`.** Fairfield Tuesday (19 agencies) and Fairfield
-Wednesday (17 agencies) share **zero** agencies — verified against the live export. An agency
-attending two days at one site appears in both schedules, which is correct and currently
-impossible to express.
+**The roster is a schedule-level fact, not a site-level one.** Fairfield Tuesday (19 agencies)
+and Fairfield Wednesday (17 agencies) share **zero** agencies — verified against the live
+export. An agency attending two days at one site belongs to both schedules, which is correct
+and impossible to express today.
+
+**Revised during implementation:** the join is stored as `agencies[].scheduleIds`, not
+`schedules[].agencyCodes`. Same normalization, better write locality — adding an agency or
+changing its assignment then writes `agencies.json` alone, where the other direction would have
+written two files and broken the one-action-one-file rule (§6) on a routine admin action. It is
+also a direct generalization of the existing `masterAgencies[].distId`, so the migration is a
+widening rather than a restructure.
 
 This replaces `distributions` as the recurring definition.
 
@@ -237,7 +244,8 @@ CheckinPallets/v6/
 
 | File | Order | Distribution |
 |---|---|---|
-| `sites`, `agencies`, `schedules` | read | read (`schedules` write: roster editing) |
+| `sites`, `schedules` | read | read (`schedules` write: add/rename/remove) |
+| `agencies` | read | **read / write** (records, and roster via `scheduleIds`) |
 | `items` | read / append | read / append |
 | `orders` | **read / write** | — |
 | `shipments` | **write** | read |
@@ -317,18 +325,34 @@ built for exactly this and already survives a round trip.
 
 ## 8. Phasing
 
-**Phase 1 — storage layer + master data** *(next build)*
+**Phase 1 — storage layer + master data** — *shipped in `CheckinPallets_25_mg.html`*
 
-- Multi-file repository abstraction: per-table load, per-table `sha`, dirty flags,
-  one-file-per-action enforcement, and **table ownership declared per bounded context**.
-- `sites`, `agencies`, `items`, `schedules` split out and migrated.
-- `orders` and `events` stay monolithic for now, in a `legacy.json` carrying the current v5
-  shapes unchanged.
-- Parity harness extended: every v5 report still renders identically, every agency keeps its
-  schedule, every order keeps its lines.
+- `Store`: per-table load, per-table `sha`, per-table dirty state, and table ownership declared
+  per bounded context. Dirtiness is decided by **hashing each serialized table** rather than by
+  asking every mutation site to declare itself — so `save()` stays one call, as in v5, while
+  only the files that actually changed are uploaded.
+- `sites`, `agencies`, `items`, `schedules` split out and migrated from either a v4 or v5 source.
+- `orders` and `events` stay together in `legacy.json` (`{events, reports, orderLog,
+  orderSchedule, copiedItems}`), so no phase-1 user action has to write two files.
 
-This is the phase that fixes the join and unblocks everything else. It is independently testable
-and keeps the risky `orders`/`events` unification out of the same change as the storage rewrite.
+**Phase 1 changes where data lives, not how the app reads it.** A view layer binds the app's
+existing `db` shape to the split tables: `db.masterAgencies` *is* the agencies table, and each
+row carries its v4/v5 field names (`num`, `distId`, `hidden`, `id`) as **non-enumerable**
+accessors over the v6 fields. Non-enumerable is what matters — `JSON.stringify` skips them, so
+the files on disk hold only the v6 shape while ~65 existing call sites keep working unchanged.
+A distribution view is the event object with its schedule's fields layered on as write-through
+accessors, so `d.checkedIn = []` lands in `legacy.json` and `d.name = 'x'` lands in
+`schedules.json` — the one-action-one-file rule holds by construction rather than by discipline.
+Phase 2 moves the in-memory model onto the tables and this layer goes away.
+
+Two behaviours worth knowing:
+
+- **`archivedOnly` schedules.** Reports whose distribution was deleted get a schedule of their
+  own so the foreign key resolves, marked `archivedOnly` and excluded from the distribution
+  list. Without that flag, migrating would resurrect deleted distributions in the sidebar.
+- **The migration owns its input.** `migrateToV6` deep-copies the source before building
+  tables. Without it the tables alias the source db, the app's first mutation reaches back into
+  it, and a second run on the "same" source produces something different.
 
 **Phase 2 — transactional split**
 
