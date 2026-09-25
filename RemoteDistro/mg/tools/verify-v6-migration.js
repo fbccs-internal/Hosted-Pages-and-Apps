@@ -74,6 +74,8 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   // Run the app's own migration path against the v5 source.
   const r = await page.evaluate(async () => {
     const out = {};
+    // Closed events now live in one file per year rather than a single reports array.
+    const migratedReports = t => Object.keys(t).filter(k => /^events-\d{4}$/.test(k)).reduce((a, k) => a.concat(t[k]), []);
     const src = await fetchSeedSource();
     out.srcLabel = src.label;
     out.srcVersion = src.db.version;
@@ -102,19 +104,19 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     out.counts = {
       sites: tables.sites.length, agencies: tables.agencies.length,
       items: tables.items.length, schedules: tables.schedules.length,
-      reports: tables.legacy.reports.length, orders: tables.legacy.orderLog.length
+      reports: migratedReports(tables).length, orders: tables.orders.filter(o => o.status === 'saved').length
     };
     out.everyScheduleHasSite = tables.schedules.every(s => tables.sites.some(x => x.code === s.siteCode));
     out.everyAgencyHasSchedule = tables.agencies.every(a =>
       a.scheduleIds.length === 0 || a.scheduleIds.every(id => tables.schedules.some(s => s.id === id)));
-    out.everyReportHasSchedule = tables.legacy.reports.every(rep =>
+    out.everyReportHasSchedule = migratedReports(tables).every(rep =>
       !rep.distId || tables.schedules.some(s => s.id === rep.scheduleId));
     out.agencyCodesUnique = new Set(tables.agencies.map(a => a.code)).size === tables.agencies.length;
     out.scheduleIdsUnique = new Set(tables.schedules.map(s => s.id)).size === tables.schedules.length;
     out.itemCodesUnique = new Set(tables.items.map(i => i.materialNumber)).size === tables.items.length;
-    out.reportsPreserved = tables.legacy.reports.length === out.beforeCounts.reports;
-    out.snapshotsIntact = tables.legacy.reports.every(rep => rep.snapshot && Array.isArray(rep.snapshot.agencies));
-    out.ordersCollapsed = out.beforeCounts.orders - tables.legacy.orderLog.length;
+    out.reportsPreserved = migratedReports(tables).length === out.beforeCounts.reports;
+    out.snapshotsIntact = migratedReports(tables).every(rep => rep.snapshot && Array.isArray(rep.snapshot.agencies));
+    out.ordersCollapsed = out.beforeCounts.orders - tables.orders.filter(o => o.status === 'saved').length;
     out.notice = tables.meta.migrationNotice;
     out.scheduleIdsJoined = tables.schedules.map(x => x.id).sort().join(',');
     out.agencyCodesJoined = tables.agencies.map(a => a.code).sort().join(',');
@@ -151,7 +153,7 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     d.name = 'RENAMED VIA VIEW';
     d.date = '2030-01-01';
     out.view.nameWroteToSchedule = Store.get('schedules')[0].label === 'RENAMED VIA VIEW';
-    out.view.dateWroteToEvent = Store.get('legacy').events[Store.get('schedules')[0].id].date === '2030-01-01';
+    out.view.dateWroteToEvent = Store.get('eventsOpen')[Store.get('schedules')[0].id].date === '2030-01-01';
     d.name = origName; d.date = origDate;
 
     // --- C. file shape ---------------------------------------------------
@@ -177,6 +179,78 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     normalizeTables();
     out.dirtyAfterCheckin = Store.dirtyNames();
 
+    // --- phase 2: the split ------------------------------------------------
+    out.tables = TABLES.map(t => t.name);
+    out.tableCount = TABLES.length;
+    out.orderStatuses = {};
+    Store.get('orders').forEach(o => { out.orderStatuses[o.status] = (out.orderStatuses[o.status] || 0) + 1; });
+    out.archiveYears = archiveYears();
+    out.closedEvents = allClosedEvents().length;
+    out.openEvents = Object.keys(Store.get('eventsOpen')).length;
+    // `orderForm` exists on the in-memory view as a non-enumerable alias onto the
+    // orders table, so `in` finds it. What must be true is that it never reaches
+    // disk — the draft belongs to the order half's table.
+    out.eventsHaveNoOrderForm = Object.values(JSON.parse(JSON.stringify(Store.get('eventsOpen'))))
+      .every(e => !('orderForm' in e));
+    out.eventKeysOnDisk = Object.keys(JSON.parse(JSON.stringify(Store.get('eventsOpen')))[Object.keys(Store.get('eventsOpen'))[0]] || {});
+    out.reportsViaArchive = db.reports.length;
+    out.orderLogProjection = db.orderLog.length;
+    out.orderLogHasLocation = db.orderLog.length ? /- [A-Z]{4}-/.test(db.orderLog[0].location || '') : false;
+    out.orderLogHasItems = db.orderLog.length ? Array.isArray(db.orderLog[0].items) : false;
+
+    // clipboard is per-browser now, not a synced table
+    out.clipboardNotATable = !TABLES.some(t => t.name === 'copiedItems');
+    db.copiedItems = [{ itemNum: 'TEST-D001' }];
+    out.clipboardRoundTrips = db.copiedItems.length === 1 && db.copiedItems[0].itemNum === 'TEST-D001';
+    Store.markAllClean();
+    db.copiedItems = [{ itemNum: 'TEST-D002' }];
+    out.clipboardDirtiesNothing = Store.dirtyNames().length === 0;
+
+    // --- the shipment contract ---------------------------------------------
+    Store.markAllClean();
+    const shipDist = db.distributions[0];
+    const ord = orderFormFor(shipDist);
+    ord.lines = [
+      { itemNum: 'APPL-D003', description: 'APPLES', needToPull: '2', pullUnit: 'BIN', qtyPulled: '9', returned: '1', used: '8' },
+      { itemNum: 'BREA-D001', description: 'BREAD', needToPull: '6', pullUnit: 'CS', qtyPulled: '', returned: '', used: '' }
+    ];
+    const shp = dispatchShipment(ord, shipDist.id);
+    out.shipment = {
+      lines: shp.lines.length,
+      keys: Object.keys(shp.lines[0]).sort(),
+      // warehouse vocabulary must NOT cross the wall
+      leak: ['needToPull', 'pullUnit', 'qtyPulled', 'returned', 'used'].filter(k => k in shp.lines[0]),
+      hasSourceOrder: shp.sourceOrderId === ord.id,
+      orderNowDispatched: ord.status === 'dispatched'
+    };
+    const pal = palletsFromShipment(shp);
+    out.shipmentPallets = {
+      n: pal.length,
+      binBecomesBin: pal[0].type === 'bin' && pal[0].qty === 2,
+      csBecomesCases: pal[1].type === 'cases' && pal[1].qty === 6,
+      carriesShipmentId: pal.every(x => x.shipmentId === shp.id)
+    };
+    // Distribution reading the contract must never need the order
+    out.distReadsOnlyShipment = shipmentsFor(shp.siteCode, shp.date).length > 0;
+
+    // --- Close Week ordered write ------------------------------------------
+    Store.markAllClean();
+    const cw = db.distributions.find(x => getDistAgencies(x).length > 0);
+    cw.checkedIn = getDistAgencies(cw).slice(0, 3).map(a => a.id);
+    cw.pallets = [{ id: uid(), materialNumber: 'APPL-D003', desc: 'APPLES', qty: 9, type: 'cases' }];
+    const beforeClosed = allClosedEvents().length;
+    const rep = saveReportSnapshot(cw);
+    out.close = {
+      archivedFirst: allClosedEvents().length === beforeClosed + 1,
+      // after step 1 the archive is dirty and the open state is NOT yet cleared
+      dirtyAfterArchive: Store.dirtyNames(),
+      stillHasCheckins: cw.checkedIn.length === 3
+    };
+    clearEventAfterClose(cw, '2026-12-31');
+    out.close.clearedAfter = cw.checkedIn.length === 0 && cw.pallets.length === 0;
+    out.close.archiveKeptIt = allClosedEvents().some(e => e.id === rep.id);
+    out.close.archiveYear = Number(String(rep.date).slice(0, 4));
+
     Store.markAllClean();
     db.masterAgencies.push({ id: uid(), num: 'TEST-S9001', name: 'Harness Agency', group: '', distId: anyDist.id, hidden: false });
     normalizeTables();
@@ -190,7 +264,9 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     out.bytes = {
       v5: JSON.stringify(before).length,
       v6total: TABLES.reduce((n, t) => n + JSON.stringify(Store.get(t.name)).length, 0),
-      hot: JSON.stringify(Store.get('legacy')).length,
+      hot: JSON.stringify(Store.get('eventsOpen')).length,
+      archive: archiveYears().reduce((n, y) => n + JSON.stringify(Store.get(archiveName(y))).length, 0),
+      orders: JSON.stringify(Store.get('orders')).length,
       master: ['sites', 'agencies', 'items', 'schedules'].reduce((n, t) => n + JSON.stringify(Store.get(t)).length, 0)
     };
     return out;
@@ -238,13 +314,14 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   await page2.goto('file://' + APP);
   await page2.waitForFunction(() => typeof Store !== 'undefined' && Store.t && Store.t.meta, { timeout: 15000 });
   const r2 = await page2.evaluate(async () => {
+    const reps = t => Object.keys(t).filter(k => /^events-\d{4}$/.test(k)).reduce((a, k) => a.concat(t[k]), []);
     const src = await fetchSeedSource();
     const t = migrateToV6(src.db);
     return {
       label: src.label, version: src.db.version,
       counts: { sites: t.sites.length, agencies: t.agencies.length, items: t.items.length,
-                schedules: t.schedules.length, reports: t.legacy.reports.length },
-      snapshotsIntact: t.legacy.reports.every(x => x.snapshot && Array.isArray(x.snapshot.agencies)),
+                schedules: t.schedules.length, reports: reps(t).length },
+      snapshotsIntact: reps(t).every(x => x.snapshot && Array.isArray(x.snapshot.agencies)),
       scheduleIds: t.schedules.map(s => s.id).sort().join(','),
       agencyCodes: t.agencies.map(a => a.code).sort().join(',')
     };
@@ -263,6 +340,8 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     `${JSON.stringify(r2.counts)} vs ${JSON.stringify(r.counts)}`);
 
   await browser.close();
+
+  const TABLE_COUNT = r.tableCount;
 
   // ---- A ----
   ok(`seeded from ${r.srcLabel} (schema v${r.srcVersion})`, r.srcVersion === sourceVersion, `got v${r.srcVersion}`);
@@ -319,14 +398,54 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   ok('data-v5.json never written', !puts.some(u => /\/data-v5\.json$/.test(u)));
   ok("v4 localStorage key untouched", ls.v4 === JSON.stringify({ version: 4, sentinel: 'V4-LIVE' }));
   ok("v5 localStorage key untouched", ls.v5 === JSON.stringify({ version: 5, sentinel: 'V5-LIVE' }));
-  ok(`v6 uses its own localStorage keys (${(ls.v6keys || []).length})`, (ls.v6keys || []).length === 6, (ls.v6keys || []).join(' '));
+  ok(`v6 uses its own localStorage keys (${(ls.v6keys || []).length})`,
+    (ls.v6keys || []).length === TABLE_COUNT + 1 &&      // +1 for the un-synced clipboard
+    (ls.v6keys || []).every(k => k.startsWith('fb_v6:')),
+    (ls.v6keys || []).join(' '));
 
   // ---- E ----
   ok('nothing dirty right after a clean mark', r.dirtyAfterClean.length === 0, r.dirtyAfterClean.join(','));
-  ok(`a check-in dirties only legacy (${r.dirtyAfterCheckin.join(',')})`,
-    r.dirtyAfterCheckin.length === 1 && r.dirtyAfterCheckin[0] === 'legacy', r.dirtyAfterCheckin.join(','));
+  ok(`a check-in dirties only events-open (${r.dirtyAfterCheckin.join(',')})`,
+    r.dirtyAfterCheckin.length === 1 && r.dirtyAfterCheckin[0] === 'eventsOpen', r.dirtyAfterCheckin.join(','));
   ok(`adding an agency dirties only agencies (${r.dirtyAfterAddAgency.join(',')})`,
     r.dirtyAfterAddAgency.length === 1 && r.dirtyAfterAddAgency[0] === 'agencies', r.dirtyAfterAddAgency.join(','));
+
+  // ---- phase 2: split ----
+  ok(`legacy.json is gone; tables are ${r.tables.filter(t => !/^events-\d/.test(t)).join(', ')}`,
+    !r.tables.includes('legacy') && ['orders', 'shipments', 'eventsOpen'].every(t => r.tables.includes(t)),
+    r.tables.join(','));
+  ok(`orders carry a lifecycle (${JSON.stringify(r.orderStatuses)})`,
+    r.orderStatuses.saved > 0 && r.orderStatuses.draft > 0);
+  ok(`closed events partitioned by year (${r.archiveYears.join(', ')})`, r.archiveYears.length > 0);
+  ok(`all ${r.closedEvents} reports live in the archive, not the hot file`,
+    r.closedEvents === r.counts.reports && r.reportsViaArchive === r.counts.reports,
+    `${r.closedEvents}/${r.reportsViaArchive} vs ${r.counts.reports}`);
+  ok(`${r.openEvents} open events hold no order draft on disk (${(r.eventKeysOnDisk || []).join(', ')})`,
+    r.eventsHaveNoOrderForm, (r.eventKeysOnDisk || []).join(','));
+  ok(`db.orderLog still reads as the order half expects (${r.orderLogProjection} entries)`,
+    r.orderLogProjection > 0 && r.orderLogHasLocation && r.orderLogHasItems,
+    `location=${r.orderLogHasLocation} items=${r.orderLogHasItems}`);
+  ok('paste clipboard is no longer a synced table', r.clipboardNotATable);
+  ok('clipboard round-trips through localStorage', r.clipboardRoundTrips);
+  ok('using the clipboard dirties no table', r.clipboardDirtiesNothing);
+
+  // ---- the contract ----
+  ok(`shipment carries ${r.shipment.lines} lines in contract vocabulary (${r.shipment.keys.join(', ')})`,
+    r.shipment.lines === 2);
+  ok('warehouse vocabulary does not cross the wall', r.shipment.leak.length === 0, r.shipment.leak.join(','));
+  ok('shipment back-references its order', r.shipment.hasSourceOrder);
+  ok('dispatch moves the order to dispatched', r.shipment.orderNowDispatched);
+  ok('BIN becomes a bin pallet, CS becomes cases',
+    r.shipmentPallets.binBecomesBin && r.shipmentPallets.csBecomesCases);
+  ok('pallets carry the shipment id', r.shipmentPallets.carriesShipmentId);
+  ok('distribution can find its shipment without the order', r.distReadsOnlyShipment);
+
+  // ---- close week ordering ----
+  ok('close week archives before clearing', r.close.archivedFirst && r.close.stillHasCheckins);
+  ok(`the archive write is what gets persisted first (${r.close.dirtyAfterArchive.join(',')})`,
+    r.close.dirtyAfterArchive.some(n => /^events-\d{4}$/.test(n)), r.close.dirtyAfterArchive.join(','));
+  ok('open state cleared only after', r.close.clearedAfter);
+  ok(`closed event kept in events-${r.close.archiveYear}.json`, r.close.archiveKeptIt);
 
   ok('no page errors', errors.length === 0, errors.join(' | '));
 
@@ -337,9 +456,9 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   console.log('-'.repeat(84));
   console.log(`  tables:  sites ${r.counts.sites} · agencies ${r.counts.agencies} · items ${r.counts.items} · schedules ${r.counts.schedules} · reports ${r.counts.reports}`);
   console.log(`  bytes:   v5 one file ${(r.bytes.v5 / 1024).toFixed(1)} KB  ->  v6 ${(r.bytes.v6total / 1024).toFixed(1)} KB across ${6} tables`);
-  console.log(`           master data ${(r.bytes.master / 1024).toFixed(1)} KB (rarely written) · transactional ${(r.bytes.hot / 1024).toFixed(1)} KB`);
-  console.log(`  hot path: a check-in now rewrites ${(r.bytes.hot / 1024).toFixed(1)} KB instead of ${(r.bytes.v5 / 1024).toFixed(1)} KB`
-    + `  (${(r.bytes.v5 / r.bytes.hot).toFixed(1)}x less)`);
+  console.log(`           master ${(r.bytes.master / 1024).toFixed(1)} KB · orders ${(r.bytes.orders / 1024).toFixed(1)} KB`
+    + ` · archive ${(r.bytes.archive / 1024).toFixed(1)} KB (once per Close Week) · open ${(r.bytes.hot / 1024).toFixed(1)} KB`);
+  console.log(`  hot path: a check-in rewrites events-open.json only — ${(r.bytes.hot / 1024).toFixed(1)} KB`);
   if (r.provisionalSites.length) console.log(`  filler site codes: ${r.provisionalSites.join(' | ')}`);
   console.log('='.repeat(84));
   console.log(fail ? `\n${fail} CHECK(S) FAILED\n` : '\nALL v6 CHECKS OK\n');

@@ -64,3 +64,9 @@ re-runnable), the view layer (the app's `db` façade still reads like v5 over sp
 writes land in the right table), file shape (no v4/v5 field names reach disk), isolation (v6
 writes only under its own directory; `data.json`, `data-v5.json`, `fb_db` and `fb_db_v5` are
 untouched), and write cost (a check-in dirties one table, not all of them).
+
+Phase 2 additions to the same run: the `legacy.json` split (orders lifecycle, year-partitioned
+archive, events-open holding no order draft on disk), the clipboard leaving the schema, the
+shipment contract (warehouse vocabulary must not cross the wall; BIN→bin, CS→cases; pallets
+carry the shipment id; Distribution can find its shipment without reading the order), and Close
+Week's ordered write (archive appended and persisted before the open state is cleared).

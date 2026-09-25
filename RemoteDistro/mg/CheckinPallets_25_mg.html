@@ -689,13 +689,54 @@ const SEED_SOURCES = [
 // into orders / shipments / events-open / events-<year>. It is deliberately one
 // file for now so that no phase-1 user action has to write two files.
 const TABLES = [
-  { name: 'meta',      file: 'meta.json',      owner: 'shared',       init: () => ({ version: SCHEMA_VERSION, migrationNotice: null, lastExportAt: null }) },
-  { name: 'sites',     file: 'sites.json',     owner: 'order',        init: () => [] },
-  { name: 'agencies',  file: 'agencies.json',  owner: 'distribution', init: () => [] },
-  { name: 'items',     file: 'items.json',     owner: 'shared',       init: () => [], append: true },
-  { name: 'schedules', file: 'schedules.json', owner: 'distribution', init: () => [] },
-  { name: 'legacy',    file: 'legacy.json',    owner: 'shared',       init: () => ({ events: {}, reports: [], orderLog: [], orderSchedule: [], copiedItems: [] }) }
+  { name: 'meta',       file: 'meta.json',        owner: 'shared',       init: () => ({ version: SCHEMA_VERSION, migrationNotice: null, lastExportAt: null, archiveYears: [] }) },
+  { name: 'sites',      file: 'sites.json',       owner: 'order',        init: () => [] },
+  { name: 'agencies',   file: 'agencies.json',    owner: 'distribution', init: () => [] },
+  { name: 'items',      file: 'items.json',       owner: 'shared',       init: () => [], append: true },
+  { name: 'schedules',  file: 'schedules.json',   owner: 'distribution', init: () => [] },
+  // --- Order building ---------------------------------------------------
+  { name: 'orders',     file: 'orders.json',      owner: 'order',        init: () => [] },
+  // The contract between the two halves: Order writes, Distribution reads.
+  { name: 'shipments',  file: 'shipments.json',   owner: 'order',        init: () => [] },
+  // --- Distribution ------------------------------------------------------
+  // Hot: the live working state, rewritten on every check-in. Kept apart from
+  // the archive so a checkbox tap no longer re-uploads years of frozen history.
+  { name: 'eventsOpen', file: 'events-open.json', owner: 'distribution', init: () => ({}) }
+  // Cold: events-<year>.json, registered on demand — see archiveTable().
 ];
+
+// Closed events are partitioned by year so the archive stays bounded: it is
+// written once per Close Week and would otherwise grow without limit against the
+// same 1 MB ceiling v5 ran into. meta.archiveYears is the index of which exist,
+// so load needs no directory listing.
+function archiveName(year) { return 'events-' + year; }
+function archiveTable(year) {
+  const name = archiveName(year);
+  let t = TABLES.find(x => x.name === name);
+  if (!t) {
+    t = { name, file: name + '.json', owner: 'distribution', init: () => [], archiveYear: year };
+    TABLES.push(t);
+  }
+  if (!Store.t[name]) Store.t[name] = { data: [], sha: null, savedHash: null };
+  const meta = Store.t.meta && Store.t.meta.data;
+  if (meta) {
+    meta.archiveYears = meta.archiveYears || [];
+    if (!meta.archiveYears.includes(year)) meta.archiveYears.push(year);
+  }
+  return t;
+}
+function archiveYears() {
+  const meta = Store.t.meta ? Store.t.meta.data : null;
+  return (meta && meta.archiveYears) ? [...meta.archiveYears].sort() : [];
+}
+// Every closed event across every registered year, newest first — what the
+// reports list reads.
+function allClosedEvents() {
+  const out = [];
+  archiveYears().forEach(y => { const e = Store.t[archiveName(y)]; if (e) out.push(...e.data); });
+  return out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) ||
+                            String(b.generatedAt || '').localeCompare(String(a.generatedAt || '')));
+}
 
 // ---------------------------------------------------------------------------
 // Store — one entry per table, each with its own sha and its own dirty state.
@@ -722,9 +763,18 @@ const Store = {
   },
 
   reset(seed) {
+    // Drop previously registered archive years; the seed decides which exist now.
+    for (let i = TABLES.length - 1; i >= 0; i--) if (TABLES[i].archiveYear) TABLES.splice(i, 1);
+    Object.keys(this.t).forEach(k => { if (/^events-\d{4}$/.test(k)) delete this.t[k]; });
     TABLES.forEach(t => {
       this.t[t.name] = { data: (seed && seed[t.name] !== undefined) ? seed[t.name] : t.init(), sha: null, savedHash: null };
     });
+    if (seed) {
+      Object.keys(seed).forEach(k => {
+        const m = /^events-(\d{4})$/.exec(k);
+        if (m) { archiveTable(+m[1]); this.t[k].data = seed[k]; }
+      });
+    }
   },
 
   dirtyNames() {
@@ -767,7 +817,12 @@ const Store = {
 
   async pullAll() {
     let found = 0;
+    // meta first: it indexes which archive years exist.
+    const meta = await this.fetchTable(this.def('meta'));
+    if (meta !== null) { this.t.meta.data = meta; found++; }
+    (this.t.meta.data.archiveYears || []).forEach(y => archiveTable(y));
     for (const t of TABLES) {
+      if (t.name === 'meta') continue;
       const data = await this.fetchTable(t);
       if (data !== null) { this.t[t.name].data = data; found++; }
     }
@@ -910,7 +965,8 @@ function v6TownFromLabel(label) {
 }
 
 function migrateToV6(src, notice) {
-  notice = notice || { provisionalSites: [], provisionalItems: [], collapsedOrders: 0, orphanSchedules: [] };
+  notice = notice || { provisionalSites: [], provisionalItems: [], collapsedOrders: 0, orphanSchedules: [], crossSiteDrafts: [] };
+  notice.crossSiteDrafts = notice.crossSiteDrafts || [];
 
   // Take ownership of the input. Without this the tables share arrays and nested
   // objects with the source db, so the app's first mutation reaches back into it
@@ -1055,58 +1111,128 @@ function migrateToV6(src, notice) {
   v5reports.forEach(r => ((r.snapshot || {}).pallets || []).forEach(p => addItem(p.mat, p.desc)));
   const items = Object.values(itemByCode).sort((a, b) => a.materialNumber.localeCompare(b.materialNumber));
 
-  // ---- legacy (transactional, split in phase 2) --------------------------
-  // The live working state of each distribution, keyed by schedule id. The
-  // schedule now owns identity and configuration; the event owns what changes
-  // week to week.
-  const events = {};
+  // ---- events (Distribution) ---------------------------------------------
+  // The live working state of each schedule. The schedule now owns identity and
+  // configuration; the event owns what changes week to week. orderForm moves out
+  // to the orders table — the draft belongs to the Order half.
+  const eventsOpen = {};
   (db.distributions || []).forEach(d => {
     const sched = scheduleByLegacyId[d.id];
     if (!sched) return;
-    events[sched.id] = {
+    eventsOpen[sched.id] = {
       date: d.date || null, notes: d.notes || '',
       checkedIn: d.checkedIn || [], pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [],
       pallets: d.pallets || [], palletsDone: d.palletsDone || {}, orderStatus: d.orderStatus || {},
-      orderForm: d.orderForm || { orderNumber: '', location: '', items: [], lastSentAt: null }
+      shipmentId: null, orderId: null
     };
   });
 
-  // Reports keep their frozen snapshot untouched; only the foreign key is
-  // rewritten from the random uid to the readable schedule id.
-  //
-  // A v4 source arrives with rendered HTML instead of a snapshot (SEED_SOURCES
-  // falls back to data.json when data-v5.json is absent), so run the v4->v5
-  // report conversion first. That makes v4 -> v5 -> v6 a real path rather than a
-  // nominal one, and keeps this migration's output identical whichever source
-  // it was fed.
-  const reports = v5reports.map(r => {
-    const sched = scheduleByLegacyId[r.distId];
-    const out = { ...r };
-    if (sched) { out.scheduleId = sched.id; out.siteCode = sched.siteCode; }
-    return out;
+  // ---- orders (Order) ------------------------------------------------------
+  // One lifecycle replacing three structures: orderSchedule was the upstream AOR
+  // calendar (planned), distributions[].orderForm the live draft, orderLog the
+  // saved history. Lines keep the warehouse vocabulary (itemNum, needToPull,
+  // pullUnit, qtyPulled, returned, used) — it never crosses into Distribution,
+  // which reads the shipment contract instead (SCHEMA.md §5).
+  const orders = [];
+  let orderSeq = 0;
+  const orderId = (siteCode, date) => `ord-${date || 'nodate'}-${siteCode || 'nosite'}-${String(++orderSeq).padStart(2, '0')}`;
+  const siteFromLocationString = str => {
+    const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(str || '');
+    return m ? m[1] : '';
+  };
+
+  (db.orderSchedule || []).forEach(o => {
+    orders.push({ id: orderId(o.code, o.date), orderNumber: o.orderNumber || '', siteCode: o.code || '',
+                  date: o.date || null, status: 'planned', lines: [], savedAt: null });
   });
 
-  // Orders with no order number never deduped in v4/v5, leaving exact repeats.
   const seenOrder = new Set();
-  const orderLog = [];
   (db.orderLog || []).forEach(o => {
     const key = [o.location || '', o.date || '', o.orderNumber || '', JSON.stringify(o.items || [])].join('|');
     if (seenOrder.has(key)) { notice.collapsedOrders++; return; }
     seenOrder.add(key);
-    orderLog.push(o);
+    const siteCode = siteFromLocationString(o.location);
+    orders.push({ id: orderId(siteCode, o.date), orderNumber: o.orderNumber || '', siteCode,
+                  date: o.date || null, status: 'saved', lines: o.items || [], savedAt: o.savedAt || null });
   });
 
-  return {
+  (db.distributions || []).forEach(d => {
+    const sched = scheduleByLegacyId[d.id];
+    const of = d.orderForm;
+    if (!sched || !of) return;
+    const hasContent = of.orderNumber || of.location || (of.items || []).length;
+    if (!hasContent) return;
+    // Keep the location that was actually entered rather than "correcting" it to
+    // the schedule's site — but say so when they disagree. In v4/v5 the order form
+    // hung off the distribution tab, so it was easy to leave a draft pointing at a
+    // different site than the distribution it was attached to, and nothing showed
+    // it. Under v6 an order belongs to a (site, date), so the mismatch is visible.
+    const siteCode = siteFromLocationString(of.location) || sched.siteCode;
+    if (siteCode && siteCode !== sched.siteCode) {
+      notice.crossSiteDrafts.push(`${sched.label} (${sched.siteCode}) has a draft order for ${siteCode}`);
+    }
+    const o = { id: orderId(siteCode, d.date), orderNumber: of.orderNumber || '', siteCode,
+                date: d.date || null, status: 'draft', scheduleId: sched.id,
+                lines: of.items || [], savedAt: null, lastSentAt: of.lastSentAt || null };
+    orders.push(o);
+    eventsOpen[sched.id].orderId = o.id;
+  });
+
+  // ---- events archive (Distribution) ---------------------------------------
+  // A closed event IS what v5 called a report: same frozen snapshot, now carrying
+  // its own identity and foreign keys. Partitioned by year.
+  const archives = {};
+  v5reports.forEach(r => {
+    const sched = scheduleByLegacyId[r.distId];
+    const year = Number(String(r.date || r.generatedAt || '').slice(0, 4)) || new Date().getFullYear();
+    const ev = { ...r, status: 'closed', closedAt: r.generatedAt || null, shipmentId: null };
+    if (sched) { ev.scheduleId = sched.id; ev.siteCode = sched.siteCode; }
+    (archives['events-' + year] = archives['events-' + year] || []).push(ev);
+  });
+
+  const out = {
     meta: {
       version: SCHEMA_VERSION,
       migratedFrom: db.version || null,
       migratedAt: new Date().toISOString(),
       migrationNotice: notice,
-      lastExportAt: db.lastExportAt || null
+      lastExportAt: db.lastExportAt || null,
+      archiveYears: Object.keys(archives).map(k => +k.slice(7)).sort()
     },
     sites, agencies, items, schedules,
-    legacy: { events, reports, orderLog, orderSchedule: db.orderSchedule || [], copiedItems: db.copiedItems || [] }
+    orders,
+    // No shipment exists historically — the contract starts with the first
+    // dispatch under v6. Back-filling one would be inventing a manifest.
+    shipments: [],
+    eventsOpen
   };
+  Object.assign(out, archives);
+  return out;
+}
+
+// A phase-1 v6 set carries one legacy.json holding events, reports, orderLog,
+// orderSchedule and copiedItems together. Split it the same way, so a stream
+// already running phase 1 upgrades rather than needing a re-seed.
+function splitPhase1Legacy(tables) {
+  const legacy = tables.legacy;
+  if (!legacy) return tables;
+  const shim = {
+    version: 5,
+    distributions: Object.entries(legacy.events || {}).map(([id, e]) => ({ ...e, id })),
+    masterAgencies: [], itemLibrary: [], locationsList: [],
+    reports: legacy.reports || [], orderLog: legacy.orderLog || [],
+    orderSchedule: legacy.orderSchedule || [], copiedItems: legacy.copiedItems || []
+  };
+  // Schedules already exist; map each event id straight through.
+  const sub = migrateToV6(shim);
+  const out = { ...tables };
+  delete out.legacy;
+  out.orders = sub.orders;
+  out.shipments = [];
+  out.eventsOpen = legacy.events || {};
+  Object.keys(sub).filter(k => /^events-\d{4}$/.test(k)).forEach(k => { out[k] = sub[k]; });
+  out.meta = { ...tables.meta, archiveYears: sub.meta.archiveYears };
+  return out;
 }
 
 
@@ -1156,6 +1282,16 @@ function bindDist(sched, event) {
   alias(d, 'dayOfWeek', () => sched.dayOfWeek, v => { sched.dayOfWeek = (v === '' || v === null || v === undefined) ? null : Number(v); });
   alias(d, 'siteCode', () => sched.siteCode, v => { sched.siteCode = v; });
   alias(d, 'active', () => sched.active, v => { sched.active = v; });
+  // The order draft lives in the orders table, not on the event. Resolved lazily
+  // so an event that never had an order does not mint one just by being read.
+  alias(d, 'orderForm', () => orderFormFor(d), v => {
+    const o = orderFormFor(d);
+    if (!v) return;
+    if (v.orderNumber !== undefined) o.orderNumber = v.orderNumber;
+    if (v.location !== undefined) o.location = v.location;
+    if (v.items !== undefined) o.lines = v.items;
+    if (v.lastSentAt !== undefined) o.lastSentAt = v.lastSentAt;
+  });
   Object.defineProperty(d, '_sched', { value: sched, enumerable: false, configurable: true });
   return d;
 }
@@ -1165,7 +1301,7 @@ let distViews = [];
 
 function bindDbView() {
   const meta = Store.get('meta');
-  const legacy = Store.get('legacy');
+  const eventsOpen = Store.get('eventsOpen');
   Store.get('agencies').forEach(bindAgency);
   Store.get('items').forEach(bindItem);
 
@@ -1173,12 +1309,11 @@ function bindDbView() {
   // exist purely so old reports from a deleted distribution keep a valid foreign
   // key; surfacing them here would resurrect a distribution the user deleted.
   distViews = Store.get('schedules').filter(s => !s.archivedOnly).map(s => {
-    if (!legacy.events[s.id]) {
-      legacy.events[s.id] = { date: null, notes: '', checkedIn: [], pickOrder: [], lateSlots: [],
-                              pallets: [], palletsDone: {}, orderStatus: {},
-                              orderForm: { orderNumber: '', location: '', items: [], lastSentAt: null } };
+    if (!eventsOpen[s.id]) {
+      eventsOpen[s.id] = { date: null, notes: '', checkedIn: [], pickOrder: [], lateSlots: [],
+                           pallets: [], palletsDone: {}, orderStatus: {}, shipmentId: null, orderId: null };
     }
-    return bindDist(s, legacy.events[s.id]);
+    return bindDist(s, eventsOpen[s.id]);
   });
 
   db = {};
@@ -1193,10 +1328,19 @@ function bindDbView() {
   prop('itemLibrary', () => Store.get('items'), v => { replaceTable('items', v.map(normalizeItem)); });
   prop('locationsList', () => Store.get('sites'), v => { syncSites(v); });
 
-  prop('reports', () => legacy.reports, v => { legacy.reports = v; });
-  prop('orderLog', () => legacy.orderLog, v => { legacy.orderLog = v; });
-  prop('orderSchedule', () => legacy.orderSchedule, v => { legacy.orderSchedule = v; });
-  prop('copiedItems', () => legacy.copiedItems, v => { legacy.copiedItems = v; });
+  // Closed events across every archive year are what the reports list reads.
+  prop('reports', () => allClosedEvents(), v => { replaceClosedEvents(v); });
+
+  // The order half still reads db.orderLog / db.orderSchedule; both are now
+  // projections of the one orders table, selected by status.
+  prop('orderLog', () => ordersByStatus('saved').map(bindOrderAsLogEntry),
+       v => { syncOrders('saved', v); });
+  prop('orderSchedule', () => ordersByStatus('planned').map(bindOrderAsScheduleEntry),
+       v => { syncOrders('planned', v); });
+
+  // The paste clipboard is per-viewer UI state, not domain data. It stops being
+  // synced entirely (SCHEMA.md §3) and lives only in this browser.
+  prop('copiedItems', () => readClipboard(), v => { writeClipboard(v); });
 
   return db;
 }
@@ -1232,7 +1376,7 @@ function normalizeItem(i) {
 // freshly-built v5-shaped distribution. Sync schedules and events to match.
 function syncDistributions(list) {
   const schedules = Store.get('schedules');
-  const legacy = Store.get('legacy');
+  const eventsOpen = Store.get('eventsOpen');
   const keep = new Set();
   const next = [];
   list.forEach(d => {
@@ -1244,19 +1388,19 @@ function syncDistributions(list) {
       while (schedules.some(s => s.id === id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
       sched = { id, siteCode, dayOfWeek: dow, cadence: 'weekly', label: d.name || id, active: true, legacyId: d.id || uid() };
       schedules.push(sched);
-      legacy.events[id] = { date: d.date || null, notes: d.notes || '', checkedIn: d.checkedIn || [],
-                            pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [], pallets: d.pallets || [],
-                            palletsDone: d.palletsDone || {}, orderStatus: d.orderStatus || {},
-                            orderForm: d.orderForm || { orderNumber: '', location: '', items: [], lastSentAt: null } };
-      next.push(bindDist(sched, legacy.events[id]));
+      eventsOpen[id] = { date: d.date || null, notes: d.notes || '', checkedIn: d.checkedIn || [],
+                         pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [], pallets: d.pallets || [],
+                         palletsDone: d.palletsDone || {}, orderStatus: d.orderStatus || {},
+                         shipmentId: null, orderId: null };
+      next.push(bindDist(sched, eventsOpen[id]));
     } else {
-      next.push(d._sched ? d : bindDist(sched, legacy.events[sched.id]));
+      next.push(d._sched ? d : bindDist(sched, eventsOpen[sched.id]));
     }
     keep.add(sched.id);
   });
   // Anything dropped from the array is deleted from both tables.
   for (let i = schedules.length - 1; i >= 0; i--) {
-    if (!keep.has(schedules[i].id)) { delete legacy.events[schedules[i].id]; schedules.splice(i, 1); }
+    if (!keep.has(schedules[i].id)) { delete eventsOpen[schedules[i].id]; schedules.splice(i, 1); }
   }
   distViews = next;
 }
@@ -1283,6 +1427,176 @@ function syncSites(list) {
     if (hit) { if (l.name) hit.name = l.name; }
     else sites.push({ code: l.code, name: l.name || l.code, area: v6AreaOf(l.code), active: true });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Projections over the orders table
+// ---------------------------------------------------------------------------
+// The order half reads db.orderLog and db.orderSchedule; both are now views of
+// one orders table selected by status, so the three structures that used to hold
+// the same thing at different points in its life are one record that moves
+// through planned -> draft -> saved -> dispatched.
+function ordersByStatus(status) { return Store.get('orders').filter(o => o.status === status); }
+
+function siteLabel(siteCode) {
+  const s = Store.get('sites').find(x => x.code === siteCode);
+  return s ? `${s.name} - ${s.code}` : (siteCode || '');
+}
+
+// order-form reads entries as {location, date, orderNumber, items, savedAt}.
+// Non-enumerable so the orders table still serializes in its own shape.
+function bindOrderAsLogEntry(o) {
+  if (!Object.getOwnPropertyDescriptor(o, 'location')) {
+    alias(o, 'location', () => siteLabel(o.siteCode), v => { o.siteCode = siteCodeFromLabel(v); });
+    alias(o, 'items', () => o.lines, v => { o.lines = v; });
+  }
+  return o;
+}
+function bindOrderAsScheduleEntry(o) {
+  if (!Object.getOwnPropertyDescriptor(o, 'code')) {
+    alias(o, 'code', () => o.siteCode, v => { o.siteCode = v; });
+    alias(o, 'name', () => (Store.get('sites').find(x => x.code === o.siteCode) || {}).name || o.siteCode,
+          v => { const s = Store.get('sites').find(x => x.code === o.siteCode); if (s && v) s.name = v; });
+  }
+  return o;
+}
+function siteCodeFromLabel(label) {
+  const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(label || '');
+  if (m) return m[1];
+  const hit = Store.get('sites').find(s => `${s.name} - ${s.code}` === label || s.name === label);
+  return hit ? hit.code : '';
+}
+
+let orderSeqCounter = 0;
+function newOrderId(siteCode, date) {
+  return `ord-${date || 'nodate'}-${siteCode || 'nosite'}-${Date.now().toString(36)}${(++orderSeqCounter).toString(36)}`;
+}
+
+// db.orderLog = [...] / db.orderSchedule = [...] — wholesale replacement from the
+// order half. Rewrite only the rows of that status, leaving the others alone.
+function syncOrders(status, list) {
+  const orders = Store.get('orders');
+  for (let i = orders.length - 1; i >= 0; i--) if (orders[i].status === status) orders.splice(i, 1);
+  (list || []).forEach(row => {
+    if (row.status === status && row.id) { orders.push(row); return; }
+    const siteCode = row.siteCode || row.code || siteCodeFromLabel(row.location);
+    orders.push({
+      id: row.id || newOrderId(siteCode, row.date),
+      orderNumber: row.orderNumber || '',
+      siteCode,
+      date: row.date || null,
+      status,
+      lines: row.lines || row.items || [],
+      savedAt: row.savedAt || null
+    });
+  });
+}
+
+// The draft order for one distribution. Replaces distributions[].orderForm: the
+// draft is an order, and orders belong to the order half's table.
+function orderFormFor(d) {
+  const orders = Store.get('orders');
+  let o = d.orderId ? orders.find(x => x.id === d.orderId) : null;
+  if (!o) {
+    o = { id: newOrderId(d.siteCode, d.date), orderNumber: '', siteCode: d.siteCode || '',
+          date: d.date || null, status: 'draft', scheduleId: d.id, lines: [], savedAt: null, lastSentAt: null };
+    orders.push(o);
+    d.orderId = o.id;
+  }
+  if (!Object.getOwnPropertyDescriptor(o, 'location')) {
+    // The location the order half edits is the site, resolved from the schedule
+    // rather than from a hardcoded name map.
+    alias(o, 'location', () => siteLabel(o.siteCode), v => { o.siteCode = siteCodeFromLabel(v) || o.siteCode; });
+    alias(o, 'items', () => o.lines, v => { o.lines = v; });
+  }
+  return o;
+}
+
+// ---------------------------------------------------------------------------
+// Closed events (the archive)
+// ---------------------------------------------------------------------------
+function archiveFor(date) {
+  const year = Number(String(date || '').slice(0, 4)) || new Date().getFullYear();
+  archiveTable(year);
+  return Store.get(archiveName(year));
+}
+// db.reports = [...] — only deleteReport uses this, to drop one.
+function replaceClosedEvents(list) {
+  const keep = new Set((list || []).map(r => r.id));
+  archiveYears().forEach(y => {
+    const arr = Store.get(archiveName(y));
+    for (let i = arr.length - 1; i >= 0; i--) if (!keep.has(arr[i].id)) arr.splice(i, 1);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Paste clipboard — per-viewer, never synced
+// ---------------------------------------------------------------------------
+function readClipboard() {
+  try { return JSON.parse(localStorage.getItem(LS_PREFIX + 'clipboard') || '[]'); } catch (e) { return []; }
+}
+function writeClipboard(v) {
+  try { localStorage.setItem(LS_PREFIX + 'clipboard', JSON.stringify(v || [])); } catch (e) {}
+}
+
+// ---------------------------------------------------------------------------
+// THE ORDER -> DISTRIBUTION CONTRACT
+// ---------------------------------------------------------------------------
+// Food is pulled onto a truck at the warehouse, then allocated at the site. The
+// shipment is the manifest of what physically went on the truck: Order writes it,
+// Distribution reads it, and neither reaches into the other's tables.
+//
+// It is deliberately narrow. needToPull / pullUnit / qtyPulled / returned / used
+// are warehouse vocabulary and stay on the Order side of the wall;
+// sourceOrderId is a back-reference Distribution stores and never interprets.
+//
+// This replaces mapOrderItemsToPallets(), which copied order rows straight into
+// d.pallets and dropped the pull actuals on the way.
+function dispatchShipment(order, scheduleId) {
+  const lines = (order.lines || []).map(it => {
+    const qtyRaw = parseFloat(it.needToPull);
+    const unit = (it.pullUnit === 'BIN' || it.pullUnit === 'LBS') ? 'units' : 'cases';
+    const qty = isNaN(qtyRaw) ? 0 : (unit === 'cases' ? Math.floor(qtyRaw) : Math.round(qtyRaw * 100) / 100);
+    return {
+      materialNumber: (it.itemNum || '').trim(),
+      description: (it.description || it.itemNum || '').trim(),
+      qty: qty || 0,
+      unit,
+      palletNum: it.palletNum || ''
+    };
+  }).filter(l => l.materialNumber || l.description);
+
+  const shipment = {
+    id: `shp-${order.date || todayStr()}-${order.siteCode || 'nosite'}-${Date.now().toString(36)}`,
+    siteCode: order.siteCode || '',
+    date: order.date || todayStr(),
+    scheduleId: scheduleId || null,
+    sourceOrderId: order.id,
+    dispatchedAt: new Date().toISOString(),
+    lines
+  };
+  Store.get('shipments').push(shipment);
+  order.status = 'dispatched';
+  order.lastSentAt = shipment.dispatchedAt;
+  return shipment;
+}
+
+// Distribution's side of the contract: turn an arriving manifest into pallets.
+// It reads only the shipment, never the order.
+function palletsFromShipment(shipment) {
+  return (shipment.lines || []).map(l => ({
+    id: uid(),
+    desc: l.description,
+    materialNumber: l.materialNumber,
+    type: l.unit === 'units' ? 'bin' : 'cases',
+    qty: l.qty,
+    shipmentId: shipment.id,
+    sourcePalletNum: l.palletNum || ''
+  }));
+}
+
+function shipmentsFor(siteCode, date) {
+  return Store.get('shipments').filter(s => s.siteCode === siteCode && (!date || s.date === date));
 }
 
 // Rows the app pushed in v4/v5 shape get folded into v6 shape before any hash or
@@ -1445,6 +1759,8 @@ function showMigrationNoticeIfAny() {
     lines.push(`<strong>${n.provisionalItems.length} item(s) are free text rather than a material number</strong> (${n.provisionalItems.slice(0, 6).join(', ')}${n.provisionalItems.length > 6 ? '…' : ''}). They were kept because reports reference them, and are flagged for cleanup.`);
   if (n.collapsedOrders)
     lines.push(`<strong>${n.collapsedOrders} duplicate saved order(s)</strong> were collapsed — exact repeats with no order number.`);
+  if (n.crossSiteDrafts && n.crossSiteDrafts.length)
+    lines.push(`<strong>${n.crossSiteDrafts.length} draft order(s) point at a different site</strong> than the distribution they were attached to: ${n.crossSiteDrafts.join('; ')}. The entered location was kept — check whether it is right.`);
   if (!lines.length) return;
 
   const dismiss = () => { Store.get('meta').migrationNotice = null; save(); closeModal('m-confirm'); restoreCancel(); };
@@ -1636,6 +1952,9 @@ function switchTab(tab,btn){
   else if(tab==='settings')renderSettings();
 }
 
+// SUPERSEDED by dispatchShipment() + palletsFromShipment(): the order half and
+// the distribution half now meet at the shipment manifest instead of here. Kept
+// in place rather than removed, unreferenced by v6.
 function mapOrderItemsToPallets(orderItems){
   const out=[];
   (orderItems||[]).forEach(it=>{
@@ -1652,18 +1971,36 @@ function mapOrderItemsToPallets(orderItems){
   return out;
 }
 
+// "Send to pallets" — the truck leaving the warehouse and arriving at the site.
+//
+// Previously one in-memory copy (mapOrderItemsToPallets) straight from the order
+// form's rows into d.pallets. Now it crosses the wall properly: Order dispatches
+// a shipment, Distribution receives that shipment. The manifest is a durable,
+// immutable record of what actually went on the truck, so the two halves can be
+// pulled apart later without either learning the other's shapes.
 function applyOrderFormToPallets(mode){
   const d=getDist();if(!d)return;
   OrderForm.flush();
-  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
-  if(!mapped.length){alert('No items with quantities to send. Add items in Order Form first.');return;}
+  const order=orderFormFor(d);
+  const shipment=dispatchShipment(order,d.id);
+  const mapped=palletsFromShipment(shipment);
+  if(!mapped.length){
+    // Nothing went on the truck — drop the empty manifest rather than leaving a
+    // dispatch record for a shipment that never happened.
+    const ships=Store.get('shipments');
+    ships.splice(ships.indexOf(shipment),1);
+    order.status='draft';
+    alert('No items with quantities to send. Add items in Order Form first.');
+    return;
+  }
   if(mode==='replace'){
     d.pallets=mapped;
   }else{
     d.pallets=d.pallets||[];
     mapped.forEach(p=>d.pallets.push(p));
   }
-  if(d.orderForm)d.orderForm.lastSentAt=new Date().toISOString();
+  d.shipmentId=shipment.id;
+  // The catalog grows from whatever actually shipped.
   mapped.forEach(p=>{
     if(!p.materialNumber)return;
     const libItems=getLibItems();
@@ -2187,18 +2524,25 @@ function confirmCloseWeek(){
     +(missingMatNum?`<div style="margin-top:10px;color:#92400e;font-weight:600;">⚠ ${missingMatNum} pallet(s) here have no material number — they'll still be saved, but won't be usable in the CERES allocation upload later.</div>`:'');
   document.getElementById('conf-ok').textContent='Close Week';
   document.getElementById('conf-ok').className='btn btn-danger';
-  document.getElementById('conf-ok').onclick=()=>{
-    const report=saveReportSnapshot(d);
+  document.getElementById('conf-ok').onclick=async()=>{
+    closeModal('m-confirm');
+    const report=saveReportSnapshot(d);          // 1. append to events-<year>
     downloadReportHTML(report);
-    d.checkedIn=[];
-    d.pickOrder=[];
-    d.lateSlots=[];
-    d.pallets=[];
-    d.palletsDone={};
-    d.orderStatus={};
-    if(d.orderForm){d.orderForm.items=[];d.orderForm.lastSentAt=null;}
-    d.date=nextDate;
-    save();closeModal('m-confirm');
+    try{
+      normalizeTables();
+      Store.writeLocal();
+      await Store.flush();                        // 2. persist the archive
+    }catch(e){
+      // The archive did not land. Leave the week open rather than clearing it —
+      // the alternative is losing the work to make the file tidy.
+      const arr=archiveFor(report.date);
+      const i=arr.findIndex(x=>x.id===report.id);
+      if(i>=0)arr.splice(i,1);
+      alert('Could not save the report — the week has been left open so nothing is lost.\n\n'+e.message);
+      return;
+    }
+    clearEventAfterClose(d,nextDate);              // 3. only now clear the open state
+    save();
     renderDistHero();renderCheckin();renderSidebar();
     switchTab('checkin',document.getElementById('nav-checkin'));
   };
@@ -2477,12 +2821,36 @@ function reportAllocations(r){
   return r.allocations||[];
 }
 
+// Close Week is the ONE action that spans two tables: a closed event moves out of
+// events-open.json and into events-<year>.json. There is no cross-file
+// transaction on the contents API, so the order is load-bearing — append to the
+// archive FIRST, clear the open state second. A failure between the two leaves a
+// duplicate, which is recoverable; the reverse order loses a week of work.
+// startup/migration de-duplicates on event id.
 function saveReportSnapshot(d){
-  const report={id:uid(),distId:d.id,distName:d.name,date:d.date||todayStr(),
-                generatedAt:new Date().toISOString(),snapshot:snapshotReport(d)};
-  db.reports=db.reports||[];
-  db.reports.unshift(report);
+  const report={id:uid(),distId:d.id,distName:d.name,
+                scheduleId:d.id,siteCode:d.siteCode,
+                date:d.date||todayStr(),generatedAt:new Date().toISOString(),
+                status:'closed',closedAt:new Date().toISOString(),
+                shipmentId:d.shipmentId||null,
+                snapshot:snapshotReport(d)};
+  archiveFor(report.date).unshift(report);   // step 1: durable
   return report;
+}
+
+// Step 2, run only after the archive write has been persisted. Split out so the
+// ordering is visible at the call site rather than buried in one handler.
+function clearEventAfterClose(d,nextDate){
+  d.checkedIn=[];
+  d.pickOrder=[];
+  d.lateSlots=[];
+  d.pallets=[];
+  d.palletsDone={};
+  d.orderStatus={};
+  d.shipmentId=null;
+  const o=d.orderId?Store.get('orders').find(x=>x.id===d.orderId):null;
+  if(o){o.lines=[];o.lastSentAt=null;o.status='draft';}
+  d.date=nextDate;
 }
 function downloadReportHTML(report){
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(report.distName)} — ${report.date}</title><style>${REPORT_CSS}</style></head><body>${reportHTML(report)}</body></html>`;
@@ -2652,7 +3020,7 @@ function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 </script>
-<script src="order-form.js"></script>
+<script src="order-form-v6.js"></script>
 <script>
 OrderForm.init({getDb:()=>db,getDist:()=>getDist(),persist:save});
 initParallelRunUI();

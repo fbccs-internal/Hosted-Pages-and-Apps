@@ -1,6 +1,6 @@
 # Data schema — v6 normalization
 
-**Status:** phase 1 implemented in `CheckinPallets_25_mg.html`. Phase 2 not started.
+**Status:** phases 1 and 2 implemented in `CheckinPallets_25_mg.html` + `order-form-v6.js`.
 **Applies to:** `CheckinPallets_25_mg.html` (v6) onward. v23/v4 and v24/v5 are unaffected.
 
 ---
@@ -354,15 +354,29 @@ Two behaviours worth knowing:
   tables. Without it the tables alias the source db, the app's first mutation reaches back into
   it, and a second run on the "same" source produces something different.
 
-**Phase 2 — transactional split**
+**Phase 2 — transactional split** — *shipped*
 
-- `orders` + `shipments` + `events-open` + `events-<year>` split out of `legacy.json`.
-- `mapOrderItemsToPallets()` replaced by the shipment contract (§5).
-- Hot/cold write separation lands here.
+- `legacy.json` split into `orders.json`, `shipments.json`, `events-open.json` and
+  `events-<year>.json`. Closed events are partitioned by year, indexed by `meta.archiveYears`
+  so load needs no directory listing.
+- `mapOrderItemsToPallets()` replaced by the shipment contract (§5): `dispatchShipment()` on
+  the Order side, `palletsFromShipment()` on the Distribution side.
+- Hot/cold separation: **a check-in rewrites `events-open.json` alone, 4.6 KB** — against
+  59 KB in phase 1 and 78 KB for the v5 single file. 37.5 KB of frozen archive stopped moving.
+- `copiedItems` left the schema entirely; the paste clipboard is per-browser localStorage.
+- **v6 has its own copy of the order form**, `order-form-v6.js`. `order-form.js` is shared by
+  v23 and v24, both in active use, so it is untouched — `DIST_LOCATION_MAP` still lives there
+  and still serves them. v6 simply stops consulting it: `deriveLocationFromDist()` reads
+  `dist.siteCode` from the schedule, falling back to the old map only when no siteCode exists.
+
+Nothing was deleted to do this. `mapOrderItemsToPallets()` stays in place, marked superseded
+and unreferenced; `order-form.js` and every earlier app file stay exactly as they were.
 
 **Phase 3 — decoupling** *(optional, enabled by the above)*
 
 - Either half can be served as its own page against the same backend.
+- Retire the view layer: move the app's in-memory model onto the tables and drop the aliases.
+- A return channel from Distribution actuals to warehouse reconciliation (§5).
 
 ### Parallel run
 
