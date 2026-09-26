@@ -43,3 +43,30 @@ Drives the live paths and the isolation guarantees:
 - the report renders with zero inline styles, and the standalone download carries its
   own CSS
 - a file from a newer schema is refused rather than overwritten
+
+## verify-v6-migration.js
+
+Checks the v5→v6 split, against the v6 app (`CheckinPallets_25_mg.html`).
+
+```bash
+node tools/verify-v6-migration.js
+```
+
+Runs two scenarios in one pass:
+
+1. **v4 source** — serves the fixture at `data.json` so the v4 fallback in `SEED_SOURCES` is
+   exercised for real, including the v4→v5 report conversion chained ahead of the v6 split.
+2. **v5 source** — first runs the fixture through the v5 app to produce a genuine v5 file, then
+   seeds v6 from that, and asserts both scenarios agree on schedules, agencies and counts.
+
+Covers migration (every entity migrated, joins resolve, nothing orphaned, deterministic and
+re-runnable), the view layer (the app's `db` façade still reads like v5 over split tables, and
+writes land in the right table), file shape (no v4/v5 field names reach disk), isolation (v6
+writes only under its own directory; `data.json`, `data-v5.json`, `fb_db` and `fb_db_v5` are
+untouched), and write cost (a check-in dirties one table, not all of them).
+
+Phase 2 additions to the same run: the `legacy.json` split (orders lifecycle, year-partitioned
+archive, events-open holding no order draft on disk), the clipboard leaving the schema, the
+shipment contract (warehouse vocabulary must not cross the wall; BIN→bin, CS→cases; pallets
+carry the shipment id; Distribution can find its shipment without reading the order), and Close
+Week's ordered write (archive appended and persisted before the open state is cleared).
