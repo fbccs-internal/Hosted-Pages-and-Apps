@@ -224,10 +224,13 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
       orderNowDispatched: ord.status === 'dispatched'
     };
     const pal = palletsFromShipment(shp);
+    // The manifest amount is the head start, not the count: it lands in
+    // plannedQty, and qty stays 0 until the coordinator counts on site.
     out.shipmentPallets = {
       n: pal.length,
-      binBecomesBin: pal[0].type === 'bin' && pal[0].qty === 2,
-      csBecomesCases: pal[1].type === 'cases' && pal[1].qty === 6,
+      binBecomesBin: pal[0].type === 'bin' && pal[0].plannedQty === 2,
+      csBecomesCases: pal[1].type === 'cases' && pal[1].plannedQty === 6,
+      uncountedUntilSite: pal.every(x => x.qty === 0),
       carriesShipmentId: pal.every(x => x.shipmentId === shp.id)
     };
     // Distribution reading the contract must never need the order
@@ -435,8 +438,10 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   ok('warehouse vocabulary does not cross the wall', r.shipment.leak.length === 0, r.shipment.leak.join(','));
   ok('shipment back-references its order', r.shipment.hasSourceOrder);
   ok('dispatch moves the order to dispatched', r.shipment.orderNowDispatched);
-  ok('BIN becomes a bin pallet, CS becomes cases',
+  ok('BIN becomes a bin pallet, CS becomes cases (ordered amount in plannedQty)',
     r.shipmentPallets.binBecomesBin && r.shipmentPallets.csBecomesCases);
+  ok('pallets arrive uncounted (qty 0) until the coordinator counts on site',
+    r.shipmentPallets.uncountedUntilSite);
   ok('pallets carry the shipment id', r.shipmentPallets.carriesShipmentId);
   ok('distribution can find its shipment without the order', r.distReadsOnlyShipment);
 

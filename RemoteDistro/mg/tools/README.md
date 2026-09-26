@@ -70,3 +70,19 @@ archive, events-open holding no order draft on disk), the clipboard leaving the 
 shipment contract (warehouse vocabulary must not cross the wall; BIN→bin, CS→cases; pallets
 carry the shipment id; Distribution can find its shipment without reading the order), and Close
 Week's ordered write (archive appended and persisted before the open state is cleared).
+
+## verify-v6-contrib.js
+
+Pass-1 checks for the contributor's order-component work merged into v6 (45 checks):
+
+```bash
+node tools/verify-v6-contrib.js
+```
+
+Drives real entry points wherever possible — the seed button's handler, the order form's own
+save path, Close Week the way a user reaches it (pick the date in the sidebar, open the
+distribution, go to Settings, press Close Week) — because calling helpers directly is how the
+phase-2 seed-button bug got past the migration suite. Covers the order-table translation layer,
+special orders, week patterns, the siteCode join (and that `DIST_LOCATION_MAP` is never
+consulted), Close Week's pattern-aware advance, qty-on-site, live sync being off, the surface UI,
+that no local-deployment scaffolding survived, and write isolation.

@@ -18,24 +18,38 @@ let _persist = () => {};
 let _xlsxLoading = null;
 
 const DIST_LOCATION_MAP = {
-    'Vallejo Monday': { name: 'Perish Dist: Vallejo', code: 'PEDI-S1001' },
-    'Vallejo Thursday': { name: 'Perish Dist: Vallejo', code: 'PEDI-S1001' },
-    'Fairfield Tuesday': { name: 'Perish Dist: Fairfield', code: 'PEDI-S2002' },
-    'Fairfield Wednesday': { name: 'Perish Dist: Fairfield', code: 'PEDI-S2002' },
-    'East County Thursday': { name: 'Perish Dist: Concord', code: 'PEDI-C2002' },
-    'East County Friday': { name: 'Perish Dist: Antioch', code: 'PEDI-C3003' },
+    // Confirmed against the food bank's own day/location/code spreadsheet.
+    'Monday El Sobrante': { name: 'Perish Dist: Richmond', code: 'PEDI-C1001' },
+    'Monday Vallejo': { name: 'Perish Dist: Vallejo', code: 'PEDI-S1001' },
+    'Tuesday Concord': { name: 'Perish Dist: Concord', code: 'PEDI-C2002' },
+    'Tuesday Fairfield': { name: 'Perish Dist: Fairfield', code: 'PEDI-S2002' },
+    'Wednesday El Sobrante': { name: 'Perish Dist: Richmond', code: 'PEDI-C1001' },
+    'Wednesday Fairfield': { name: 'Perish Dist: Fairfield', code: 'PEDI-S2002' },
+    'Thursday Concord': { name: 'Perish Dist: Concord', code: 'PEDI-C2002' },
+    'Thursday Vallejo': { name: 'Perish Dist: Vallejo', code: 'PEDI-S1001' },
+    'Thursday Antioch': { name: 'Perish Dist: Antioch', code: 'PEDI-C3003' },
+    'Thursday Vacaville': { name: 'Perish Dist: Vacaville', code: 'PEDI-S3003' },
+    'Friday Antioch': { name: 'Perish Dist: Antioch', code: 'PEDI-C3003' },
 };
 
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Could not load ${src}`));
+        document.head.appendChild(script);
+    });
+}
+
+// Tries the standard "xlsx.min.js" filename first, then falls back to
+// "xlsx_min.js" — some file hosts/uploads mangle dots in filenames to
+// underscores, so this covers either naming without needing to know
+// in advance which one is actually deployed.
 function ensureXlsxLoaded() {
     if (typeof XLSX !== 'undefined') return Promise.resolve();
     if (_xlsxLoading) return _xlsxLoading;
-    _xlsxLoading = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'xlsx.min.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Could not load xlsx.min.js'));
-        document.head.appendChild(script);
-    });
+    _xlsxLoading = loadScript('xlsx.min.js').catch(() => loadScript('xlsx_min.js'));
     return _xlsxLoading;
 }
 
@@ -44,12 +58,57 @@ function bindDateListener() {
     if (!dateEl || dateEl._ofBound) return;
     dateEl._ofBound = true;
     dateEl.addEventListener('change', (e) => {
-        formData.date = e.target.value;
+        const newDate = e.target.value;
+        const oldDate = formData.date; // still holds the previous date at this point
+
+        // Save whatever's currently on screen (for the OLD date) before
+        // switching — same protection as picking a different Scheduled
+        // Order, so nothing gets lost just by changing the date.
+        // Temporarily restore the old date on the field first so the saved
+        // log entry is correctly tagged with it, not the new one.
+        const currentOrderNumber = document.getElementById('of-orderNumber').value;
+        const currentLocation = document.getElementById('of-location').value;
+        const hasData = currentOrderNumber || currentLocation || hasAnyItemData(items);
+        if (hasData) {
+            dateEl.value = oldDate || '';
+            logCurrentOrder();
+        }
+
+        dateEl.value = newDate;
+        formData.date = newDate;
         const dist = _getDist();
-        if (dist) dist.date = e.target.value;
+        if (dist) dist.date = newDate;
+
+        // Clear the on-screen items AND order number — they belonged to the
+        // previous date's order, now safely saved above if there was anything
+        // worth keeping. Clearing the order number here matters: without it,
+        // a date with no scheduled match would leave the OLD date's order
+        // number sitting in the field, and the "restore a saved order" check
+        // below would then find and reload that same old order right back —
+        // silently undoing the clear it was supposed to be doing.
+        items = [];
+        renderItems();
+        formData.orderNumber = '';
+        document.getElementById('of-orderNumber').value = '';
+
         saveData();
         fetchOrderNumber();
-        renderScheduleOptions(e.target.value || '');
+        autoMatchScheduledOrderNumber();
+
+        // If the new date already has a saved order (just auto-matched above,
+        // or simply logged previously), restore its items instead of leaving
+        // the form blank.
+        const matchedOrderNumber = document.getElementById('of-orderNumber').value;
+        if (matchedOrderNumber) {
+            const savedOrder = orderLog.find(o => o.orderNumber === matchedOrderNumber);
+            if (savedOrder) {
+                items = savedOrder.items.map(it => ({ ...it }));
+                renderItems();
+            }
+        }
+
+        renderScheduleOptions(newDate || '');
+        if (typeof setSidebarScheduleDate === 'function') setSidebarScheduleDate(newDate || '');
     });
 }
 
@@ -73,15 +132,29 @@ function init(config) {
     }
 }
 
+// Re-read the order form's cached tables from the host db. init() does this once,
+// but v6 loads asynchronously — the GitHub pull lands after init — so the host
+// calls this whenever it rebinds db. Data only: none of init()'s one-time DOM
+// wiring, so calling it repeatedly cannot double-bind listeners.
+function refresh() {
+    if (!_getDb) return;
+    loadLocationsList();
+    loadOrderSchedule();
+    loadOrderLog();
+}
+
 function activate() {
     loadData();
-    renderScheduleOptions(document.getElementById('of-date')?.value || '');
+    autoMatchScheduledOrderNumber();
+    const currentDate = document.getElementById('of-date')?.value || '';
+    renderScheduleOptions(currentDate);
     updateExportReminder();
+    if (typeof setSidebarScheduleDate === 'function') setSidebarScheduleDate(currentDate);
     const helper = document.getElementById('of-orderNumberHelperText');
     if (helper) {
         helper.textContent = CERES_API_ENABLED
             ? 'Auto-populated from Ceres API, or type your own'
-            : 'Auto-generated placeholder for now, or type your own';
+            : 'Pick a Scheduled Order above, or type your own';
     }
 }
 
@@ -146,6 +219,26 @@ function locationValue(loc) {
     return `${loc.name} - ${loc.code}`;
 }
 
+// Reverse lookup: given a location code (e.g. from a scheduled order),
+// return the distribution name(s) whose recurring route serves that
+// location. Used by the sidebar to figure out which distribution(s)
+// correspond to a given day's scheduled orders.
+// Not called by v6: this reverse-looks-up DIST_LOCATION_MAP (six display names,
+// covering 3 of 14 distributions) to get from a site code to distributions. v6's
+// getScheduledDistsForDate() filters schedules on siteCode instead. Kept because
+// it arrived with the contributor's order form, not because anything uses it.
+function getDistNamesForCode(code) {
+    return Object.keys(DIST_LOCATION_MAP).filter(name => DIST_LOCATION_MAP[name].code === code);
+}
+
+// Returns the scheduled orders (each with a location code) for a given
+// calendar date, e.g. '2026-08-04'. Used by the sidebar's date picker
+// to figure out which distribution(s) have an order scheduled that day.
+function getScheduleForDate(date) {
+    if (!date) return [];
+    return orderSchedule.filter(o => o.date === date).map(o => ({ ...o }));
+}
+
 function loadLocationsList() {
     const db = _getDb();
     locationsList = (db.locationsList && db.locationsList.length)
@@ -158,43 +251,57 @@ function saveLocationsList() {
     _persist();
 }
 
+// Opens the "Add Special Order" popup — for a distribution/order that
+// isn't in the imported schedule. Prefills the date with whatever is
+// currently on the form so it lines up by default.
 function showAddLocationPanel() {
-    document.getElementById('of-newLocationName').value = '';
-    document.getElementById('of-newLocationCode').value = '';
-    document.getElementById('of-addLocationPanel').style.display = 'block';
-    document.getElementById('of-newLocationName').focus();
+    document.getElementById('so-name').value = '';
+    document.getElementById('so-code').value = '';
+    document.getElementById('so-orderNumber').value = '';
+    document.getElementById('so-date').value = document.getElementById('of-date').value || Shared.todayStr();
+    openModal('m-add-special-order');
+    setTimeout(() => document.getElementById('so-name').focus(), 200);
 }
 
-function hideAddLocationPanel() {
-    document.getElementById('of-addLocationPanel').style.display = 'none';
-}
-
-function cancelAddLocation() {
-    hideAddLocationPanel();
-}
-
-// Adds a new location to the saved list (for future schedule
-// matching/imports) and also fills it into the Location field
-// directly, for the case where the coordinator is at a
-// distribution that isn't in the schedule yet.
-function confirmAddLocation() {
-    const name = document.getElementById('of-newLocationName').value.trim();
-    const code = document.getElementById('of-newLocationCode').value.trim();
+// Adds the manually-entered special order as a real entry in the
+// Scheduled Order list (same shape as an imported row), then selects
+// it — so Location and Order Number end up filled the exact same way
+// whether an order came from an import or was typed in by hand here.
+function confirmAddSpecialOrder() {
+    const name = document.getElementById('so-name').value.trim();
+    const code = document.getElementById('so-code').value.trim();
+    const date = document.getElementById('so-date').value;
+    const orderNumber = document.getElementById('so-orderNumber').value.trim();
     if (!name || !code) {
         alert('Please enter both a name and a code.');
         return;
     }
-    const newLoc = { name, code };
-    const value = locationValue(newLoc);
-    if (locationsList.some(l => locationValue(l) === value)) {
-        alert('That location already exists.');
+    if (!date) {
+        alert('Please pick a date.');
         return;
     }
-    locationsList.push(newLoc);
-    saveLocationsList();
-    hideAddLocationPanel();
-    document.getElementById('of-location').value = value;
-    fetchOrderNumber();
+
+    const newLoc = { name, code };
+    const locValue = locationValue(newLoc);
+    if (!locationsList.some(l => locationValue(l) === locValue)) {
+        locationsList.push(newLoc);
+        saveLocationsList();
+    }
+
+    const entry = { orderNumber, code, name, date };
+    orderSchedule.push(entry);
+    saveOrderSchedule();
+    closeModal('m-add-special-order');
+
+    document.getElementById('of-date').value = date;
+    renderScheduleOptions(date);
+    const idx = scheduleSorted.indexOf(entry);
+    if (idx !== -1) {
+        document.getElementById('of-scheduleSelect').value = String(idx);
+        handleScheduleSelect(String(idx));
+    } else if (typeof setSidebarScheduleDate === 'function') {
+        setSidebarScheduleDate(date);
+    }
 }
 
 // ============================================================
@@ -306,6 +413,7 @@ const DEFAULT_ORDER_SCHEDULE = [
 
 let orderSchedule = [];
 let scheduleSorted = [];
+let currentScheduleEntry = null; // the actual object from orderSchedule currently shown as selected
 
 function loadOrderSchedule() {
     const db = _getDb();
@@ -330,6 +438,12 @@ function renderScheduleOptions(filterDate) {
     }
     scheduleSorted = sorted;
 
+    // If the currently-selected entry isn't in the rebuilt (possibly re-filtered)
+    // list anymore, treat it as no longer selected rather than holding a stale
+    // reference that could never be found/re-highlighted again.
+    const selectedIdx = currentScheduleEntry ? sorted.indexOf(currentScheduleEntry) : -1;
+    if (currentScheduleEntry && selectedIdx === -1) currentScheduleEntry = null;
+
     if (filterDate && sorted.length === 0) {
         select.innerHTML = '<option value="">No scheduled orders for this date</option>';
         select.value = '';
@@ -350,7 +464,7 @@ function renderScheduleOptions(filterDate) {
     });
     if (!filterDate && lastDate !== null) html += '</optgroup>';
     select.innerHTML = html;
-    select.value = '';
+    select.value = selectedIdx !== -1 ? String(selectedIdx) : '';
 }
 
 // Finds a location already in the editable locations list by agency
@@ -373,9 +487,13 @@ function findOrCreateLocationByCode(code, name) {
 // Antioch after doing Concord), its saved items are restored so it
 // can be reviewed/printed; if it's brand new, it starts blank.
 function handleScheduleSelect(value) {
-    if (value === '') return;
+    if (value === '') {
+        currentScheduleEntry = null;
+        return;
+    }
     const order = scheduleSorted[parseInt(value, 10)];
     if (!order) return;
+    currentScheduleEntry = order;
 
     const currentOrderNumber = document.getElementById('of-orderNumber').value;
 
@@ -403,7 +521,6 @@ function handleScheduleSelect(value) {
 
     const locValue = findOrCreateLocationByCode(order.code, order.name);
     document.getElementById('of-location').value = locValue;
-    hideAddLocationPanel();
 
     formData.orderNumber = order.orderNumber || '';
     document.getElementById('of-orderNumber').value = order.orderNumber || '';
@@ -418,6 +535,7 @@ function handleScheduleSelect(value) {
     saveData();
 
     renderScheduleOptions(order.date || '');
+    if (typeof setSidebarScheduleDate === 'function') setSidebarScheduleDate(order.date || '');
 }
 
 // Maps flexible schedule column headers to our internal field names
@@ -587,6 +705,9 @@ function logCurrentOrder() {
     orderLog.push(entry);
     saveOrderLog();
     updateExportReminder();
+    // V2: mirror these items into this distribution's Pallets tab automatically —
+    // covers both Save and Print, since both call logCurrentOrder().
+    if (typeof autoSyncOrderFormToPallets === 'function') autoSyncOrderFormToPallets();
 }
 
 // The "💾 Save" button. Saves the current order into the log
@@ -872,23 +993,30 @@ const produceItems = [
 let items = [];
 let printOrientation = 'portrait';
 
-function toggleOrientationSelect() {
-    const select = document.getElementById('of-printOrientationSelect');
-    select.style.display = select.style.display === 'none' ? 'inline-block' : 'none';
+function togglePrintMenu() {
+    const menu = document.getElementById('of-printMenu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function printWithOrientation(orientation) {
+    const menu = document.getElementById('of-printMenu');
+    if (menu) menu.style.display = 'none';
+    setPrintOrientation(orientation);
+    showPrintPreview();
 }
 
 function setPrintOrientation(orientation) {
     printOrientation = orientation;
     document.body.classList.toggle('print-landscape', orientation === 'landscape');
     applyPageOrientationStyle();
-    document.getElementById('of-printOrientationSelect').style.display = 'none';
 }
 
 function applyPageOrientationStyle() {
     let styleTag = document.getElementById('of-dynamicPageStyle');
     if (!styleTag) {
         styleTag = document.createElement('style');
-        styleTag.id = 'dynamicPageStyle';
+        styleTag.id = 'of-dynamicPageStyle';
         document.head.appendChild(styleTag);
     }
     styleTag.textContent = `@page { size: letter ${printOrientation}; margin: 0; }`;
@@ -945,6 +1073,41 @@ function loadData() {
     if (numEl) numEl.value = formData.orderNumber;
     items = formData.items.map(item => ({ ...item }));
     renderItems();
+
+    // Re-derive which schedule entry (if any) matches THIS distribution's own
+    // order number/date/location, rather than leaving a stale selection behind
+    // from whatever distribution was viewed previously.
+    currentScheduleEntry = formData.orderNumber
+        ? orderSchedule.find(o => o.orderNumber === formData.orderNumber) || null
+        : orderSchedule.find(o => o.date === formData.date && locationValue({ name: o.name, code: o.code }) === formData.location) || null;
+}
+
+// Location is auto-derived from the distribution itself (in v6, from the
+// schedule's siteCode — see deriveLocationFromDist) the moment a distribution is
+// opened — completely
+// independent of whether anyone has touched the Scheduled Order
+// dropdown. That meant a real scheduled order could exist for the
+// current Location + Date and never get pulled in, because nothing
+// automatically checked for it — order number stayed blank until
+// someone happened to also click that entry in the dropdown by hand.
+// This closes that gap: it looks for a schedule entry matching what's
+// already on screen and fills in its real order number if found.
+// Never overwrites a number that's already correct for this exact
+// date/location combination.
+function autoMatchScheduledOrderNumber() {
+    const location = document.getElementById('of-location').value;
+    const date = document.getElementById('of-date').value;
+    if (!location || !date) return;
+    const match = orderSchedule.find(o =>
+        o.date === date && locationValue({ name: o.name, code: o.code }) === location
+    );
+    if (!match) return;
+    currentScheduleEntry = match; // keep the Scheduled Order dropdown's visible selection in sync too
+    const matchNumber = match.orderNumber || '';
+    if (formData.orderNumber === matchNumber) return;
+    formData.orderNumber = matchNumber;
+    document.getElementById('of-orderNumber').value = matchNumber;
+    saveData();
 }
 
 function saveData() {
@@ -988,66 +1151,59 @@ function fetchOrderNumber() {
         return;
     }
 
-    // Only auto-generate an order number if this date/location
-    // combination is actually assigned to a scheduled distribution
-    // (PEDI). For a date that hasn't been scheduled, leave the
-    // order number blank instead of fabricating one — the person
-    // can still type one in by hand if they need to.
+    // Mock/placeholder auto-generation is disabled. Until the real
+    // Ceres API is wired up (CERES_API_ENABLED = true), the order
+    // number is only ever set by (a) typing one in manually, or
+    // (b) picking an entry from the Scheduled Order dropdown, which
+    // fills in that order's real number directly (see
+    // handleScheduleSelect). Whatever is already in the field is
+    // left alone here rather than being overwritten with a fake one.
+    if (!CERES_API_ENABLED) return;
+
+    // Only auto-fetch if this date/location combination is actually
+    // assigned to a scheduled distribution (PEDI). For a date that
+    // hasn't been scheduled, leave the order number as-is instead of
+    // fabricating one — the person can still type one in by hand.
     const isScheduled = orderSchedule.some(o =>
         o.date === date && locationValue({ name: o.name, code: o.code }) === location
     );
     if (!isScheduled) {
-        document.getElementById('of-orderNumber').value = '';
-        formData.orderNumber = '';
-        saveData();
         return;
     }
 
-    document.getElementById('of-orderNumber').value = CERES_API_ENABLED
-        ? '⟳ Fetching from Ceres...'
-        : '⟳ Generating order number...';
+    document.getElementById('of-orderNumber').value = '⟳ Fetching from Ceres...';
 
-    if (CERES_API_ENABLED) {
-        // Real Ceres API call
-        const url = `${CERES_API_BASE_URL}/api/v2.0/orders?date=${encodeURIComponent(date)}&location=${encodeURIComponent(location)}`;
-        fetch(url, {
-            headers: {
-                // TODO(IT): confirm the correct auth header format for your Ceres/Business Central setup.
-                // Common options: 'Authorization': `Bearer ${CERES_API_KEY}` or 'Ocp-Apim-Subscription-Key': CERES_API_KEY
-                'Authorization': `Bearer ${CERES_API_KEY}`,
-                'Accept': 'application/json'
+    // Real Ceres API call
+    const url = `${CERES_API_BASE_URL}/api/v2.0/orders?date=${encodeURIComponent(date)}&location=${encodeURIComponent(location)}`;
+    fetch(url, {
+        headers: {
+            // TODO(IT): confirm the correct auth header format for your Ceres/Business Central setup.
+            // Common options: 'Authorization': `Bearer ${CERES_API_KEY}` or 'Ocp-Apim-Subscription-Key': CERES_API_KEY
+            'Authorization': `Bearer ${CERES_API_KEY}`,
+            'Accept': 'application/json'
+        }
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Ceres API returned ${response.status}`);
             }
+            return response.json();
         })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Ceres API returned ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                // TODO(IT): confirm the actual field name Ceres returns for the order number
-                // (this assumes `data.orderNumber`; adjust if it's e.g. `data.number` or `data.value[0].number`)
-                const orderNumber = data.orderNumber || data.number || '';
-                if (!orderNumber) {
-                    throw new Error('No order number found in Ceres response');
-                }
-                formData.orderNumber = orderNumber;
-                document.getElementById('of-orderNumber').value = orderNumber;
-                saveData();
-            })
-            .catch(error => {
-                document.getElementById('of-orderNumber').value = 'Error fetching order';
-                console.error('Ceres API error:', error);
-            });
-    } else {
-        // Mock call - simulates API delay. Remove this block once CERES_API_ENABLED is true.
-        setTimeout(() => {
-            const mockOrderId = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-            formData.orderNumber = `AOR${mockOrderId}`;
-            document.getElementById('of-orderNumber').value = formData.orderNumber;
+        .then(data => {
+            // TODO(IT): confirm the actual field name Ceres returns for the order number
+            // (this assumes `data.orderNumber`; adjust if it's e.g. `data.number` or `data.value[0].number`)
+            const orderNumber = data.orderNumber || data.number || '';
+            if (!orderNumber) {
+                throw new Error('No order number found in Ceres response');
+            }
+            formData.orderNumber = orderNumber;
+            document.getElementById('of-orderNumber').value = orderNumber;
             saveData();
-        }, 800);
-    }
+        })
+        .catch(error => {
+            document.getElementById('of-orderNumber').value = 'Error fetching order';
+            console.error('Ceres API error:', error);
+        });
 }
 
 // Export current order (location/date/order number + items) to a single-sheet .xlsx file.
@@ -1056,7 +1212,63 @@ function fetchOrderNumber() {
 function exportToExcel() {
     const location = document.getElementById('of-location').value;
     const date = document.getElementById('of-date').value;
-    const orderNumber = formData.orderNumber || '';
+
+    // "Agency No." here is the downstream system's terminology for the
+    // distribution's own PEDI/location code (e.g. "PEDI-C1001") — NOT an
+    // individual food-pantry agency number. Pulled from the currently
+    // matched Scheduled Order entry when available (the authoritative
+    // source), falling back to parsing it out of the Location field's
+    // "Name - CODE" display format.
+    const agencyNo = currentScheduleEntry
+        ? currentScheduleEntry.code
+        : (location.includes(' - ') ? location.split(' - ').pop().trim() : location);
+
+    const shipmentDate = date ? new Date(date + 'T00:00:00') : '';
+
+    const rows = items
+        .filter(item => item.itemNum) // a row with no item number isn't allocatable
+        .map(item => ({
+            'Agency No.': agencyNo,
+            'Item No.': item.itemNum || '',
+            'Qty. to Allocate': item.needToPull || '',
+            'Shipment Date': shipmentDate
+        }));
+
+    if (!rows.length) {
+        rows.push({ 'Agency No.': agencyNo, 'Item No.': '', 'Qty. to Allocate': '', 'Shipment Date': shipmentDate });
+    }
+
+    const sheet = XLSX.utils.json_to_sheet(rows, { cellDates: true });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, 'Contra Costa');
+
+    const safeLocation = (location || 'order').replace(/[^a-z0-9]+/gi, '_');
+    const safeDate = date || new Date().toISOString().split('T')[0];
+    const filename = `Allocation_${safeLocation}_${safeDate}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+    showImportStatus(`Exported to ${filename}`, 'success');
+}
+
+// Full order detail export — everything the original "Export to Excel"
+// used to include (Location/Date/Order Number plus every item field), kept
+// alongside the newer Ceres-format export above since they serve different
+// purposes: this one for round-tripping/backing up an order's full detail,
+// the other for feeding into the allocation system. Reachable from the gear
+// menu (App Settings) rather than the Order Form tab, so it works no matter
+// which tab is currently showing — it reads straight from the distribution's
+// saved order data rather than needing the Order Form tab to be active.
+function exportFullOrderDetail() {
+    const dist = _getDist();
+    if (!dist) {
+        alert('Open a distribution first — this exports that distribution\'s current order.');
+        return;
+    }
+    const of = dist.orderForm || {};
+    const location = of.location || '';
+    const date = dist.date || '';
+    const orderNumber = of.orderNumber || '';
+    const orderItems = of.items || [];
 
     const baseRow = {
         'Location': location,
@@ -1064,8 +1276,8 @@ function exportToExcel() {
         'Order Number': orderNumber
     };
 
-    const rows = items.length
-        ? items.map(item => buildItemExportRow(baseRow, item))
+    const rows = orderItems.length
+        ? orderItems.map(item => buildItemExportRow(baseRow, item))
         : [buildItemExportRow(baseRow, null)];
 
     const sheet = XLSX.utils.json_to_sheet(rows);
@@ -1077,7 +1289,7 @@ function exportToExcel() {
     const filename = `DistributionOrder_${safeLocation}_${safeDate}.xlsx`;
 
     XLSX.writeFile(wb, filename);
-    showImportStatus(`Exported to ${filename}`, 'success');
+    alert(`Exported to ${filename}`);
 }
 
 // Map flexible/variant column headers to our internal field names
@@ -1500,9 +1712,12 @@ function formatDateForPrint(isoDate) {
     const parts = isoDate.split('-');
     if (parts.length !== 3) return isoDate;
     const [year, month, day] = parts.map(Number);
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     if (!year || !month || !day || month < 1 || month > 12) return isoDate;
-    return `${monthNames[month - 1]} ${day}, ${year}`;
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    // Construct from y/m/d directly (not from the ISO string) so this
+    // isn't affected by timezone shifting the date backward/forward.
+    const weekday = dayNames[new Date(year, month - 1, day).getDay()];
+    return `${weekday}. ${month}/${day}/${year}`;
 }
 
 // flow). `order` is { location, date, orderNumber, items }.
@@ -1526,7 +1741,7 @@ function buildOrderPrintHtml(order) {
     const singlePageBudgetPx = 400; // ~25 items' worth (25 * 16px), based on real print testing
     const dataRowHeightPx = 16;
     const blankRowHeightPx = 30;
-    const preferredHandwrittenRows = 5; // soft target for shorter orders — never forced if it wouldn't fit
+    const maxHandwrittenRows = 40; // generous sanity ceiling, not a soft target — see below
     const likelyMultiPage = (orderItems.length * dataRowHeightPx) > singlePageBudgetPx;
 
     let printHtml = `
@@ -1561,7 +1776,7 @@ function buildOrderPrintHtml(order) {
                     <th>ITEM #</th>
                     <th>Pallet #</th>
                     <th>Item Description</th>
-                    <th>Need to Pull</th>
+                    <th style="text-align:right;">Need to Pull</th>
                     <th>Qty Pulled</th>
                     <th>Qty Returned</th>
                     <th>Qty Used</th>
@@ -1585,7 +1800,7 @@ function buildOrderPrintHtml(order) {
                 <td>${Shared.escapeHtml(item.itemNum)}</td>
                 <td>${Shared.escapeHtml(item.palletNum)}</td>
                 <td>${Shared.escapeHtml(item.description)}</td>
-                <td>${Shared.escapeHtml(needToPullDisplay)}</td>
+                <td style="text-align:right;">${Shared.escapeHtml(needToPullDisplay)}</td>
                 <td></td>
                 <td>${Shared.escapeHtml(item.returned)}</td>
                 <td>${Shared.escapeHtml(item.used)}</td>
@@ -1597,17 +1812,18 @@ function buildOrderPrintHtml(order) {
     // Blank rows are sized based on remaining page space (in px),
     // not a flat row count — a flat count doesn't work well since
     // blank rows (30px, sized for handwriting) and real item rows
-    // (16px) take up very different amounts of space. This
-    // estimates how much vertical room is left on page 1 after
-    // the header/info/thead/footer overhead, and fills it with
-    // AT MOST a handful of blank rows — but only ever as many as
-    // actually fit. Blank rows are never forced past what fits,
-    // because the signature line getting pushed to an orphan
-    // page-2-with-no-items is a worse outcome than having fewer
-    // (or zero) blank handwriting rows on a nearly-full order.
+    // (16px) take up very different amounts of space. This estimates
+    // how much vertical room is left on page 1 after the
+    // header/info/thead/footer overhead and fills ALL of it with
+    // blank handwriting rows, up to a generous sanity ceiling — a
+    // short order should use its available page space for blank
+    // rows rather than leaving it empty. Blank rows are never forced
+    // past what fits, because the signature line getting pushed to
+    // an orphan page-2-with-no-items is a worse outcome than having
+    // fewer (or zero) blank handwriting rows on a nearly-full order.
     const remainingForBlanksPx = singlePageBudgetPx - (orderItems.length * dataRowHeightPx);
     const blanksThatFit = Math.max(0, Math.floor(remainingForBlanksPx / blankRowHeightPx));
-    const blankRows = Math.min(preferredHandwrittenRows, blanksThatFit);
+    const blankRows = Math.min(maxHandwrittenRows, blanksThatFit);
     for (let i = 0; i < blankRows; i++) {
         printHtml += `
             <tr style="height: 30px;">
@@ -1716,6 +1932,7 @@ function previewSavedOrder(index) {
 
 const api = {
     init,
+    refresh,
     activate,
     getItems,
     flush,
@@ -1742,9 +1959,9 @@ const api = {
     handleMoreActionsMenu,
     handleOrderNumberChange,
     showAddLocationPanel,
-    cancelAddLocation,
-    confirmAddLocation,
-    toggleOrientationSelect,
+    confirmAddSpecialOrder,
+    togglePrintMenu,
+    printWithOrientation,
     setPrintOrientation,
     handleUndoToastClick,
     toggleSavedOrdersPanel,
@@ -1752,12 +1969,16 @@ const api = {
     previewSavedOrder,
     deleteSavedOrder,
     selectSavedOrdersForCurrentDate,
-    selectAllSavedOrders
+    selectAllSavedOrders,
+    getDistNamesForCode,
+    getScheduleForDate
 };
 
 // Wrap XLSX-dependent exports
 const _exportToExcel = exportToExcel;
 api.exportToExcel = function() { return ensureXlsxLoaded().then(() => _exportToExcel()); };
+const _exportFullOrderDetail = exportFullOrderDetail;
+api.exportFullOrderDetail = function() { return ensureXlsxLoaded().then(() => _exportFullOrderDetail()); };
 const _importFromExcel = importFromExcel;
 api.importFromExcel = function(ev) { ensureXlsxLoaded().then(() => _importFromExcel(ev)).catch(err => showImportStatus(err.message, 'error')); };
 const _exportLogToExcel = exportLogToExcel;

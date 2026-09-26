@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Food Bank Distribution</title>
+<title>Food Bank Distribution [BUILD-2026-09-22-NOTOKEN-33]</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root {
@@ -24,6 +24,40 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 
 /* SIDEBAR */
 #sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--navy);display:flex;flex-direction:column;overflow:hidden;}
+#sidebar-hamburger{display:none;background:none;border:none;font-size:22px;line-height:1;cursor:pointer;padding:6px 10px;margin-right:6px;color:var(--gray-700);flex-shrink:0;}
+#btn-app-settings{background:none;border:none;font-size:20px;line-height:1;cursor:pointer;padding:6px 10px;margin-left:6px;color:var(--gray-500);flex-shrink:0;border-radius:var(--r-sm);}
+#btn-app-settings:hover{background:var(--gray-100);color:var(--gray-900);}
+#sidebar-backdrop{display:none;}
+/* Tablets and phones: the sidebar becomes a slide-in overlay instead of taking
+   up permanent screen width, since there isn't room for both it and the actual
+   content (Check-in, Pallets, etc.) side by side on a narrow screen. */
+@media (max-width: 900px){
+  #sidebar-hamburger{display:block;}
+  #app{position:relative;}
+  #sidebar{position:fixed;top:0;left:0;bottom:0;z-index:200;transform:translateX(-100%);transition:transform 0.25s ease;box-shadow:4px 0 24px rgba(0,0,0,0.25);}
+  #sidebar.open{transform:translateX(0);}
+  #sidebar-backdrop.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:150;}
+  #dist-subnav{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  #dist-subnav .tab-btn{flex-shrink:0;}
+  .hero-grid{flex-wrap:wrap;}
+  #topbar{padding:0 12px;}
+  #scroll-area{padding:14px 12px 100px;}
+  .modal{padding:20px;}
+  .overlay{padding:16px;}
+
+  /* Touch targets: every interactive control below gets sized up to the
+     standard ~44px minimum for touch (iOS/Android guideline) instead of the
+     tighter desktop/mouse sizing used elsewhere — a fingertip needs more
+     room than a cursor. This is applied once, here, so any element using
+     these classes/ids is automatically covered without needing to guess at
+     or revisit sizing per-screen later. */
+  .pacc-actions .btn{padding:10px 14px;font-size:13px;min-height:44px;}
+  .pacc-toggle{padding:11px 14px;min-height:44px;min-width:44px;}
+  .chk{width:44px;height:44px;}
+  .badge[onclick]{padding:8px 12px;display:inline-block;}
+  .mclose{width:40px;height:40px;font-size:20px;}
+  #sidebar-hamburger,#btn-app-settings{padding:10px 12px;min-width:44px;min-height:44px;}
+}
 #sidebar-header{padding:20px 16px 10px;}
 #sidebar-logo{color:white;font-size:16px;font-weight:700;margin-bottom:2px;}
 #sidebar-sub{color:rgba(255,255,255,0.4);font-size:11px;font-family:'DM Mono',monospace;}
@@ -33,20 +67,14 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .sidebar-dist-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border-left:3px solid transparent;transition:background 0.1s;position:relative;}
 .sidebar-dist-item:hover{background:rgba(255,255,255,0.07);}
 .sidebar-dist-item.active-view{background:rgba(255,255,255,0.12);border-left-color:#DDD6FE;}
+#sidebar-no-orders-note{padding:10px 16px;font-size:12px;line-height:1.4;color:rgba(255,255,255,0.35);font-style:italic;}
+#sidebar-schedule-date-wrap{padding:0 16px 8px;}
+#sidebar-schedule-date{width:100%;font-size:12px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-family:'DM Sans',sans-serif;}
+#sidebar-schedule-date::-webkit-calendar-picker-indicator{filter:invert(1);opacity:0.6;}
 .sdi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .sdi-info{flex:1;min-width:0;}
 .sdi-name{color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sdi-status{font-size:10px;margin-top:1px;}
-#sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:8px;}
-.sfooter-btn{width:100%;padding:9px 12px;border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background 0.15s;}
-#btn-new-dist{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);color:white;}
-#btn-new-dist:hover{background:rgba(255,255,255,0.2);}
-#btn-item-library{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
-#btn-item-library:hover{background:rgba(255,255,255,0.08);}
-#btn-reports{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
-#btn-reports:hover{background:rgba(255,255,255,0.08);}
-#btn-master-agencies{background:none;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
-#btn-master-agencies:hover{background:rgba(255,255,255,0.08);}
 
 /* MAIN */
 #main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
@@ -57,9 +85,7 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 /* ACTIVE BANNER */
 
 /* HOME */
-#screen-home{padding:32px 24px;}
-.empty-icon{font-size:40px;margin-bottom:12px;}
-.empty-title{font-size:18px;font-weight:600;color:var(--gray-700);margin-bottom:6px;}
+#screen-home{padding:0;}
 
 /* DIST VIEW */
 #screen-dist{flex:1;display:flex;flex-direction:column;overflow:hidden;}
@@ -82,7 +108,6 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .screen{display:none;}
 .screen.active{display:block;}
 /* Sticky toolbar (pinned action button at top of a scrolling tab) */
-.sticky-toolbar{position:sticky;top:0;z-index:5;background:var(--gray-50);margin:-20px -24px 0;padding:20px 24px 16px;}
 .section-hdr{font-size:11px;font-weight:600;color:var(--gray-500);letter-spacing:0.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 
 /* CARDS */
@@ -109,22 +134,23 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .chk.on{background:var(--green);border-color:var(--green);color:white;}
 
 /* PALLET ACCORDION */
-.pacc{margin-bottom:10px;border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.pacc-head{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--white);cursor:pointer;user-select:none;}
-.pacc-head:hover{background:var(--gray-50);}
+.pacc{margin-bottom:8px;border-radius:var(--r-lg);border:1px solid var(--gray-200);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.pacc-head{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--white);flex-wrap:wrap;}
 .pnum{width:32px;height:32px;border-radius:50%;background:var(--navy);color:white;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
+.pacc-eachbadge{flex-shrink:0;text-align:center;background:var(--blue-pale);border-radius:var(--r-md);padding:4px 14px;line-height:1.1;}
+.pacc-eachval{font-size:24px;font-weight:800;color:var(--blue);}
+.pacc-eachlbl{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.03em;}
 .pnum.done{background:var(--green);}
 .pacc-info{flex:1;min-width:0;}
+.pacc-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .pacc-title{font-size:14px;font-weight:600;}
-.pacc-sub{font-size:12px;color:var(--gray-500);margin-top:2px;}
-.pchev{font-size:18px;color:var(--gray-500);transition:transform 0.2s;flex-shrink:0;}
-.pchev.open{transform:rotate(90deg);}
-.pacc-body{display:none;background:var(--gray-50);border-top:1px solid var(--gray-200);}
-.pacc-body.open{display:block;}
-.alloc-box{background:var(--blue-pale);border-radius:var(--r-md);padding:14px 18px;margin:14px 18px;text-align:center;}
-.alloc-val{font-size:36px;font-weight:600;color:var(--blue);}
-.alloc-lbl{font-size:12px;color:var(--gray-500);margin-top:4px;font-weight:500;}
-.pick-row{display:flex;align-items:center;gap:8px;padding:9px 18px;border-bottom:1px solid var(--gray-100);font-size:13px;}
+.pacc-sub{font-size:12px;font-weight:400;color:var(--gray-500);}
+.pacc-body{display:block;background:var(--gray-50);border-top:1px solid var(--gray-200);}
+.pacc-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.pacc-actions .btn{width:auto;padding:6px 10px;font-size:12px;}
+.pacc-toggle{background:none;border:1px solid var(--gray-200);border-radius:var(--r-sm);font-size:14px;line-height:1;cursor:pointer;padding:6px 9px;color:var(--gray-500);}
+.pacc-toggle:hover{background:var(--gray-100);color:var(--gray-900);}
+.pick-row{display:flex;align-items:center;gap:8px;padding:6px 16px;border-bottom:1px solid var(--gray-100);font-size:13px;}
 .pick-row:last-child{border-bottom:none;}
 .pick-n{width:24px;height:24px;border-radius:50%;background:var(--gray-200);color:var(--gray-700);font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace;}
 
@@ -150,7 +176,6 @@ html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;backgroun
 .flabel{font-size:12px;font-weight:600;color:var(--gray-700);margin-bottom:5px;letter-spacing:0.02em;}
 input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:10px 13px;border:1px solid var(--gray-300);border-radius:var(--r-md);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--gray-900);background:var(--white);outline:none;transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none;}
 input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(109,40,217,0.12);}
-.irow{display:flex;gap:8px;}.irow>*{flex:1;}
 .seg{display:flex;border:1px solid var(--gray-300);border-radius:var(--r-md);overflow:hidden;}
 .seg-btn{flex:1;padding:9px;border:none;background:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;color:var(--gray-500);}
 .seg-btn+.seg-btn{border-left:1px solid var(--gray-300);}
@@ -169,6 +194,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* PRINT STYLES */
 @media print {
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  html,body{background:white!important;}
   #app{display:block;height:auto;}
   #sidebar,#topbar,#dist-subnav,#tab-orderform,#tab-checkin,#tab-lottery,#tab-pallets,#tab-settings{display:none!important;}
   body.of-printing #app{display:none!important;}
@@ -220,10 +246,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 #tab-orderform .duplicate-item-row .item-num-input{border-color:#f57c00;}
 #tab-orderform .items-summary{margin-top:10px;padding:8px 12px;background:var(--blue-pale);border:1px solid var(--blue-light);border-radius:var(--r-sm);font-size:13px;}
 #tab-orderform .empty-state{text-align:center;padding:24px;color:var(--gray-500);}
-#tab-orderform .integration-note{margin-top:16px;padding:10px 12px;background:var(--gray-50);border-left:3px solid var(--gray-300);border-radius:var(--r-sm);font-size:12px;color:var(--gray-700);}
-#tab-orderform .print-control-group{display:flex;align-items:stretch;}
-#tab-orderform .print-orientation-toggle,#tab-orderform .print-orientation-select{font-size:11px;padding:0 6px;border:1px solid var(--blue);background:white;color:var(--blue);cursor:pointer;}
-#tab-orderform .btn-print{background:var(--blue);color:white;border:none;padding:7px 12px;font-size:13px;border-radius:0 var(--r-sm) var(--r-sm) 0;cursor:pointer;}
+#tab-orderform .print-dropdown{position:relative;display:inline-block;}
+#tab-orderform .btn-print{background:var(--blue);color:white;border:none;padding:7px 12px;font-size:13px;border-radius:var(--r-sm);cursor:pointer;}
+#tab-orderform .btn-print:hover{background:#7c3aed;}
+#tab-orderform .print-dropdown-menu{position:absolute;top:100%;left:0;margin-top:4px;background:white;border:1px solid var(--gray-200);border-radius:var(--r-sm);box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:50;min-width:150px;overflow:hidden;}
+#tab-orderform .print-dropdown-menu button{display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;font-family:'DM Sans',sans-serif;background:none;border:none;cursor:pointer;color:var(--gray-900);}
+#tab-orderform .print-dropdown-menu button:hover{background:var(--gray-50);}
 #of-printView{position:fixed;inset:0;z-index:150;background:var(--gray-50);overflow-y:auto;padding:24px;display:none;}
 #of-printView.open{display:block;}
 #of-printView .back-button{background:var(--gray-200);color:var(--gray-900);border:none;padding:10px 16px;border-radius:var(--r-sm);cursor:pointer;margin-top:16px;font-family:'DM Sans',sans-serif;}
@@ -236,6 +264,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   #of-printView .print-preview{padding:0;margin:0;border:none;}
   #of-printView .print-header{text-align:center;margin-bottom:0;}
   #of-printView .print-header h1{font-size:22px;font-weight:bold;}
+  #of-printView .print-info{display:flex;gap:28px;flex-wrap:wrap;margin:6px 0 14px;padding:6px 0;border-top:1px solid #999;border-bottom:1px solid #999;}
+  #of-printView .print-info-field{font-size:15px;}
+  #of-printView .print-info-label{font-weight:700;margin-right:4px;}
+  #of-printView .print-repeat-info th{font-size:11px;font-weight:700;text-align:left;padding:3px 4px;}
   #of-printView .print-table{width:100%;border-collapse:collapse;font-size:14px;}
   #of-printView .print-table th,#of-printView .print-table td{border:0.5px solid #999;padding:3px 4px;}
 }
@@ -253,35 +285,30 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div id="sidebar-sync"></div>
     <div id="sidebar-dist-section">
       <div class="sidebar-section-label">Distributions</div>
+      <div id="sidebar-schedule-date-wrap">
+        <input type="date" id="sidebar-schedule-date" onchange="setSidebarScheduleDate(this.value)" title="Pick a date to see that day's scheduled distribution(s)">
+      </div>
+      <div id="sidebar-select-hint" style="display:none;padding:6px 16px 10px;font-size:11px;line-height:1.4;color:rgba(255,255,255,0.45);">👆 Select a distribution below to get started</div>
+      <div id="sidebar-no-orders-note" style="display:none;">No orders scheduled for this date.</div>
       <div id="sidebar-dist-list"></div>
     </div>
-    <div id="sidebar-footer">
-      <button id="btn-new-dist" class="sfooter-btn" onclick="openManageDists()">⚙ Manage Distributions</button>
-      <button id="btn-master-agencies" class="sfooter-btn" onclick="openMasterAgencies()">👥 Manage Agencies</button>
-      <button id="btn-item-library" class="sfooter-btn" onclick="openItemLibrary()">📋 Item Library</button>
-      <button id="btn-reports" class="sfooter-btn" onclick="openReportsList()">🗂 Reports</button>
-      <button id="btn-seed" class="sfooter-btn" style="display:none;background:none;border:1px solid rgba(251,191,36,0.4);color:#fbbf24;" onclick="confirmSeedFromLive()">⇣ Pull from live (v4)</button>
-      <div id="parallel-badge" style="display:none;margin-top:8px;padding:6px 8px;border-radius:var(--r-md);background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;font-size:10px;line-height:1.4;text-align:center;letter-spacing:0.04em;"></div>
-    </div>
+    <div id="parallel-badge" style="display:none;margin:auto 16px 12px;padding:6px 8px;border-radius:var(--r-md);background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;font-size:10px;line-height:1.4;text-align:center;letter-spacing:0.04em;"></div>
   </div>
+  <div id="sidebar-backdrop" onclick="closeSidebarMobile()"></div>
 
   <!-- MAIN -->
   <div id="main">
     <div id="topbar">
-      <div style="flex:1;">
+      <button id="sidebar-hamburger" onclick="toggleSidebarMobile()" aria-label="Menu">☰</button>
+      <div style="flex:1;min-width:0;">
         <div id="t-title">Food Bank</div>
         <div id="t-sub">Select a distribution</div>
       </div>
       <div id="t-actions"></div>
+      <button id="btn-app-settings" onclick="openModal('m-app-settings')" title="App Settings" aria-label="App Settings">⚙</button>
     </div>
     <!-- HOME -->
-    <div id="screen-home" class="screen active" style="padding:32px 24px;text-align:center;">
-      <div style="padding:80px 24px;color:var(--gray-500);">
-        <div class="empty-icon">📦</div>
-        <div class="empty-title">No distribution selected</div>
-        <div style="font-size:14px;">Choose one from the sidebar or create a new one.</div>
-      </div>
-    </div>
+    <div id="screen-home" class="screen active"></div>
 
     <!-- DIST VIEW -->
     <div id="screen-dist" class="screen" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
@@ -342,46 +369,37 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button type="button" class="btn btn-primary btn-sm" style="max-width:320px;" onclick="OrderForm.printSelectedSavedOrders()">🖨 Print Selected (each on its own sheet)</button>
             </div>
             <div class="form-section">
+              <div class="form-row" style="display:none;">
+                <div class="form-group" style="max-width:160px;">
+                  <label for="of-date">Date</label>
+                  <input type="date" id="of-date">
+                </div>
+              </div>
               <div class="form-row">
                 <div class="form-group" style="grid-column:1/-1;">
-                  <label for="of-scheduleSelect">Scheduled Order (optional)</label>
+                  <label for="of-scheduleSelect">Scheduled Order</label>
+                  <div class="helper-text" style="margin-bottom:8px;">Date is set from the sidebar calendar — pick a date there to see that day's scheduled orders.</div>
                   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <select id="of-scheduleSelect" onchange="OrderForm.handleScheduleSelect(this.value)" style="flex:1;min-width:260px;">
                       <option value="">Select a scheduled order...</option>
                     </select>
+                    <button class="btn-secondary" onclick="OrderForm.showAddLocationPanel()">+ Add Special Order</button>
                     <button class="btn-secondary" onclick="document.getElementById('of-scheduleFileInput').click()">📥 Import Schedule</button>
                     <input type="file" id="of-scheduleFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="OrderForm.importSchedule(event)">
                   </div>
-                  <div class="helper-text">Shows orders for the distribution date below. Picking one loads location, order number, and saved items if any.</div>
+                  <div class="helper-text">Pick the order for this date — this sets the location and order number below. Use "+ Add Special Order" for anything not in the imported schedule.</div>
                   <span class="import-status" id="of-scheduleImportStatus"></span>
                 </div>
               </div>
-              <div class="form-row">
+              <div class="form-row" style="display:none;">
                 <div class="form-group">
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-                    <label for="of-location" style="margin-bottom:0;">Location</label>
-                    <button type="button" class="btn-secondary" style="padding:2px 8px;font-size:11px;" onclick="OrderForm.showAddLocationPanel()">+ Add Location</button>
-                  </div>
+                  <label for="of-location" style="margin-bottom:0;">Location</label>
                   <input type="text" id="of-location" class="order-number-display" readonly style="cursor:default;" placeholder="From schedule or distribution mapping">
-                  <div id="of-addLocationPanel" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--blue);border-radius:var(--r-sm);background:var(--blue-pale);">
-                    <div style="display:flex;flex-direction:column;gap:6px;">
-                      <input type="text" id="of-newLocationName" placeholder="Name (e.g. Perish Dist: City)" class="table-input">
-                      <input type="text" id="of-newLocationCode" placeholder="Code (e.g. PEDI-X0000)" class="table-input">
-                      <div style="display:flex;gap:6px;">
-                        <button type="button" class="btn btn-primary btn-sm" style="flex:1;" onclick="OrderForm.confirmAddLocation()">Add</button>
-                        <button type="button" class="btn-secondary" style="flex:1;" onclick="OrderForm.cancelAddLocation()">Cancel</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label for="of-date">Date</label>
-                  <input type="date" id="of-date" style="max-width:160px;">
                 </div>
                 <div class="form-group">
                   <label for="of-orderNumber">Order Number</label>
                   <input type="text" class="order-number-display" id="of-orderNumber" placeholder="Auto-fetched, or enter manually" onchange="OrderForm.handleOrderNumberChange(this.value)">
-                  <div class="helper-text" id="of-orderNumberHelperText">Auto-generated placeholder for now, or type your own</div>
+                  <div class="helper-text" id="of-orderNumberHelperText">Pick a Scheduled Order above, or type your own</div>
                 </div>
               </div>
               <div class="form-row">
@@ -391,18 +409,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                       <h2>Items</h2>
                       <button class="btn btn-primary btn-sm" onclick="OrderForm.addItem()" style="padding:4px 10px;">+ Add item</button>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
-                      <button class="btn-secondary" onclick="OrderForm.copyItemsToClipboard()">📋 Copy Items</button>
-                      <button class="btn-secondary" onclick="OrderForm.pasteItemsFromClipboard()">📋 Paste Items</button>
-                      <button class="btn-secondary" onclick="OrderForm.clearItemsManually()">🗑 Clear Items</button>
-                      <button class="btn btn-primary btn-sm" onclick="OrderForm.saveCurrentOrder()">💾 Save</button>
-                      <div class="print-control-group">
-                        <button type="button" class="print-orientation-toggle" onclick="OrderForm.toggleOrientationSelect()" title="Choose print orientation">▾</button>
-                        <select id="of-printOrientationSelect" class="print-orientation-select" style="display:none;" onchange="OrderForm.setPrintOrientation(this.value)">
-                          <option value="portrait" selected>Portrait</option>
-                          <option value="landscape">Landscape</option>
-                        </select>
-                        <button class="btn-print" onclick="OrderForm.showPrintPreview()">🖨 Print hard copy</button>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+                      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                        <button class="btn-secondary" onclick="OrderForm.copyItemsToClipboard()">📋 Copy Items</button>
+                        <button class="btn-secondary" onclick="OrderForm.pasteItemsFromClipboard()">📋 Paste Items</button>
+                        <button class="btn-secondary" onclick="OrderForm.clearItemsManually()">🗑 Clear Items</button>
+                      </div>
+                      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-sm" style="width:80px;flex:0 0 auto;padding:6px 8px;font-size:12px;" onclick="OrderForm.saveCurrentOrder()">💾 Save</button>
+                        <div class="print-dropdown">
+                          <button class="btn-print" onclick="OrderForm.togglePrintMenu()">🖨 Print hard copy ▾</button>
+                          <div id="of-printMenu" class="print-dropdown-menu" style="display:none;">
+                            <button type="button" onclick="OrderForm.printWithOrientation('portrait')">📄 Portrait</button>
+                            <button type="button" onclick="OrderForm.printWithOrientation('landscape')">📃 Landscape</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -417,8 +438,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
         <!-- CHECK-IN -->
         <div id="tab-checkin" class="screen active">
-          <div class="section-hdr">Agencies <span id="ci-badge" style="background:var(--green-light);color:var(--green);padding:2px 10px;border-radius:100px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;"></span>
-            <span id="ci-hidden-toggle" onclick="toggleShowHidden()" style="cursor:pointer;font-size:11px;font-weight:600;color:var(--blue);text-transform:none;letter-spacing:0;"></span>
+          <div class="section-hdr">
+            <div>Agencies <span id="ci-badge" style="background:var(--green-light);color:var(--green);padding:2px 10px;border-radius:100px;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0;"></span>
+              <span id="ci-hidden-toggle" onclick="toggleShowHidden()" style="cursor:pointer;font-size:11px;font-weight:600;color:var(--blue);text-transform:none;letter-spacing:0;"></span>
+            </div>
+            <span onclick="clearAllCheckins()" style="cursor:pointer;font-size:11px;font-weight:600;color:var(--red);text-transform:none;letter-spacing:0;">✕ Clear All</span>
           </div>
           <div class="card" id="ci-list"></div>
         </div>
@@ -502,6 +526,37 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div style="border-top:1px solid var(--gray-200);padding-top:14px;">
       <button class="btn btn-sm" style="max-width:220px;" onclick="closeModal('m-manage-agencies');openMasterAgenciesForDist(mgrAgencyDistId)">+ Add a new agency here</button>
     </div>
+  </div>
+</div>
+
+<!-- APP SETTINGS MODAL (gear icon, top bar) — global/app-wide actions, not scoped to any one distribution -->
+<div class="overlay" id="m-app-settings">
+  <div class="modal" style="max-width:380px;">
+    <button class="mclose" onclick="closeModal('m-app-settings')">×</button>
+    <div class="modal-title">App Settings</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+      <button class="btn" onclick="closeModal('m-app-settings');openManageDists()">⚙ Manage Distributions</button>
+      <button class="btn" onclick="closeModal('m-app-settings');openMasterAgencies()">👥 Manage Agencies</button>
+      <button class="btn" onclick="closeModal('m-app-settings');openItemLibrary()">📋 Item Library</button>
+      <button class="btn" onclick="closeModal('m-app-settings');openReportsList()">🗂 Reports</button>
+      <button class="btn" onclick="OrderForm.exportFullOrderDetail()">📊 Export Full Order Detail</button>
+      <div style="font-size:11px;color:var(--gray-500);margin-top:-4px;padding:0 2px;">Exports the currently open distribution's order with full item detail (location, dates, pallet #s, quantities). Open a distribution first.</div>
+      <button id="btn-seed" class="btn" style="display:none;border-color:#d97706;color:#92400e;" onclick="closeModal('m-app-settings');confirmSeedFromLive()">⇣ Pull from older stream</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SPECIAL ORDER MODAL (manual entry — gets added to the Scheduled Order dropdown) -->
+<div class="overlay" id="m-add-special-order">
+  <div class="modal" style="max-width:420px;">
+    <button class="mclose" onclick="closeModal('m-add-special-order')">×</button>
+    <div class="modal-title">Add Special Order</div>
+    <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px;">For a distribution or order that isn't in the imported schedule. This gets added to the Scheduled Order list below and selected automatically.</p>
+    <div class="field"><div class="flabel">Location Name</div><input type="text" id="so-name" placeholder="e.g. Perish Dist: City"></div>
+    <div class="field"><div class="flabel">Location Code</div><input type="text" id="so-code" placeholder="e.g. PEDI-X0000"></div>
+    <div class="field"><div class="flabel">Date</div><input type="date" id="so-date"></div>
+    <div class="field"><div class="flabel">Order Number <span style="font-weight:400;color:var(--gray-500);">(optional — can type it in later too)</span></div><input type="text" id="so-orderNumber" placeholder="e.g. AOR216700"></div>
+    <button class="btn btn-primary" style="margin-top:4px" onclick="OrderForm.confirmAddSpecialOrder()">Add</button>
   </div>
 </div>
 
@@ -938,6 +993,32 @@ const V6_TOWN_TO_SITE = {
 };
 
 const DOW_MNEMONIC = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const DOW_WORDS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+// Cadence uses the contributor's week-pattern vocabulary, consumed by
+// matchesWeekPattern() and advanceToNextOccurrence(). normalizeCadence() also
+// maps the placeholder values an earlier v6 seed may have written.
+function normalizeCadence(v) {
+  if (v === '2nd4th' || v === '2nd-4th') return '2nd4th';
+  if (v === '1st3rd' || v === '1st-3rd') return '1st3rd';
+  return 'all';
+}
+// Their SEED_WEEK_PATTERN / SEED_DOW, derived from the label instead of keyed on
+// exact names: SEED_DOW is exactly "weekday word -> index" for all 11 entries, and
+// the one SEED_WEEK_PATTERN entry was keyed 'Thursday Vacaville' while the real
+// distribution is 'Thursday VACAVILLE 2nd / 4th weeks' — an exact-name seed would
+// silently miss it. Requiring both ordinals keeps "1st Street" from matching.
+function cadenceFromLabel(label) {
+  const l = (label || '').toLowerCase();
+  if (/2nd\W+(?:and\W+|&\W*)?4th/.test(l)) return '2nd4th';
+  if (/1st\W+(?:and\W+|&\W*)?3rd/.test(l)) return '1st3rd';
+  return 'all';
+}
+function dowFromLabel(label) {
+  const l = (label || '').toLowerCase();
+  const i = DOW_WORDS.findIndex(w => new RegExp('\\b' + w + '\\b').test(l));
+  return i >= 0 ? i : null;
+}
 
 function v6AreaOf(code) {
   const m = /-([A-Z]\d)/.exec(code || '');
@@ -1019,7 +1100,10 @@ function migrateToV6(src, notice) {
       if (existing) siteCode = existing.code;
       else { siteCode = 'SITE-LOCAL-' + String(++fillerSeq).padStart(2, '0'); addSite(siteCode, town, true); }
     }
-    const dow = (d.dayOfWeek === undefined || d.dayOfWeek === null || d.dayOfWeek === '') ? null : Number(d.dayOfWeek);
+    // A missing dayOfWeek falls back to the weekday in the label — two live
+    // distributions ('Wednesday El Sobrante', 'Thursday Vallejo') have none.
+    const dow = (d.dayOfWeek === undefined || d.dayOfWeek === null || d.dayOfWeek === '')
+      ? dowFromLabel(d.name) : Number(d.dayOfWeek);
     let id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]);
     let n = 1;
     while (takenIds.has(id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
@@ -1027,7 +1111,8 @@ function migrateToV6(src, notice) {
 
     const hasRoster = (db.masterAgencies || []).some(a => a.distId === d.id);
     const sched = {
-      id, siteCode, dayOfWeek: dow, cadence: /2nd|4th/i.test(d.name || '') ? '2nd-4th' : 'weekly',
+      id, siteCode, dayOfWeek: dow,
+      cadence: d.weekPattern ? normalizeCadence(d.weekPattern) : cadenceFromLabel(d.name),
       label: d.name || id, active: hasRoster, legacyId: d.id
     };
     schedules.push(sched);
@@ -1050,7 +1135,7 @@ function migrateToV6(src, notice) {
     let n = 1;
     while (takenIds.has(id)) id = siteCode + '-ARCHIVED-' + (++n);
     takenIds.add(id);
-    const sched = { id, siteCode, dayOfWeek: null, cadence: 'weekly', label, active: false, legacyId: r.distId, archivedOnly: true };
+    const sched = { id, siteCode, dayOfWeek: dowFromLabel(label), cadence: cadenceFromLabel(label), label, active: false, legacyId: r.distId, archivedOnly: true };
     schedules.push(sched);
     scheduleByLegacyId[r.distId] = sched;
     notice.orphanSchedules.push(label + ' (' + id + ')');
@@ -1282,6 +1367,7 @@ function bindDist(sched, event) {
   alias(d, 'dayOfWeek', () => sched.dayOfWeek, v => { sched.dayOfWeek = (v === '' || v === null || v === undefined) ? null : Number(v); });
   alias(d, 'siteCode', () => sched.siteCode, v => { sched.siteCode = v; });
   alias(d, 'active', () => sched.active, v => { sched.active = v; });
+  alias(d, 'weekPattern', () => normalizeCadence(sched.cadence), v => { sched.cadence = normalizeCadence(v); });
   // The order draft lives in the orders table, not on the event. Resolved lazily
   // so an event that never had an order does not mint one just by being read.
   alias(d, 'orderForm', () => orderFormFor(d), v => {
@@ -1333,9 +1419,9 @@ function bindDbView() {
 
   // The order half still reads db.orderLog / db.orderSchedule; both are now
   // projections of the one orders table, selected by status.
-  prop('orderLog', () => ordersByStatus('saved').map(bindOrderAsLogEntry),
+  prop('orderLog', () => ordersByStatus('saved').map(toLogEntry),
        v => { syncOrders('saved', v); });
-  prop('orderSchedule', () => ordersByStatus('planned').map(bindOrderAsScheduleEntry),
+  prop('orderSchedule', () => ordersByStatus('planned').map(toScheduleEntry),
        v => { syncOrders('planned', v); });
 
   // The paste clipboard is per-viewer UI state, not domain data. It stops being
@@ -1386,7 +1472,7 @@ function syncDistributions(list) {
       const dow = (d.dayOfWeek === undefined || d.dayOfWeek === null || d.dayOfWeek === '') ? null : Number(d.dayOfWeek);
       let id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]), n = 1;
       while (schedules.some(s => s.id === id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
-      sched = { id, siteCode, dayOfWeek: dow, cadence: 'weekly', label: d.name || id, active: true, legacyId: d.id || uid() };
+      sched = { id, siteCode, dayOfWeek: dow, cadence: normalizeCadence(d.weekPattern), label: d.name || id, active: true, legacyId: d.id || uid() };
       schedules.push(sched);
       eventsOpen[id] = { date: d.date || null, notes: d.notes || '', checkedIn: d.checkedIn || [],
                          pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [], pallets: d.pallets || [],
@@ -1443,22 +1529,22 @@ function siteLabel(siteCode) {
   return s ? `${s.name} - ${s.code}` : (siteCode || '');
 }
 
-// order-form reads entries as {location, date, orderNumber, items, savedAt}.
-// Non-enumerable so the orders table still serializes in its own shape.
-function bindOrderAsLogEntry(o) {
-  if (!Object.getOwnPropertyDescriptor(o, 'location')) {
-    alias(o, 'location', () => siteLabel(o.siteCode), v => { o.siteCode = siteCodeFromLabel(v); });
-    alias(o, 'items', () => o.lines, v => { o.lines = v; });
-  }
-  return o;
+// The order form works on COPIES: it loads with .map(o => ({...o})), mutates its
+// copies, and writes the whole array back. A spread copies only enumerable own
+// properties, so handing it order rows dressed with non-enumerable aliases (the
+// phase-2 approach) failed three ways: code/name/location vanished on load, and
+// the copy's real `items` property was written straight back to orders.json next
+// to `lines`. So these return plain objects in exactly the order form's shape, and
+// syncOrders() translates them back into clean order rows. The rows themselves
+// never carry order-form field names.
+function toLogEntry(o) {
+  return { id: o.id, location: siteLabel(o.siteCode), date: o.date, orderNumber: o.orderNumber || '',
+           items: (o.lines || []).map(it => ({ ...it })), savedAt: o.savedAt || null };
 }
-function bindOrderAsScheduleEntry(o) {
-  if (!Object.getOwnPropertyDescriptor(o, 'code')) {
-    alias(o, 'code', () => o.siteCode, v => { o.siteCode = v; });
-    alias(o, 'name', () => (Store.get('sites').find(x => x.code === o.siteCode) || {}).name || o.siteCode,
-          v => { const s = Store.get('sites').find(x => x.code === o.siteCode); if (s && v) s.name = v; });
-  }
-  return o;
+function toScheduleEntry(o) {
+  const site = Store.get('sites').find(x => x.code === o.siteCode);
+  return { id: o.id, orderNumber: o.orderNumber || '', code: o.siteCode || '',
+           name: site ? site.name : (o.siteCode || ''), date: o.date };
 }
 function siteCodeFromLabel(label) {
   const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(label || '');
@@ -1473,22 +1559,35 @@ function newOrderId(siteCode, date) {
 }
 
 // db.orderLog = [...] / db.orderSchedule = [...] — wholesale replacement from the
-// order half. Rewrite only the rows of that status, leaving the others alone.
+// order half. Rewrite only the rows of that status, leaving drafts and dispatched
+// orders alone. Rows are rebuilt field by field from whatever shape arrives
+// (translated copies, or DEFAULT_ORDER_SCHEDULE literals with no id), so no
+// order-form field name can reach disk.
 function syncOrders(status, list) {
   const orders = Store.get('orders');
+  const prior = {};
+  orders.forEach(o => { if (o.status === status) prior[o.id] = o; });
   for (let i = orders.length - 1; i >= 0; i--) if (orders[i].status === status) orders.splice(i, 1);
   (list || []).forEach(row => {
-    if (row.status === status && row.id) { orders.push(row); return; }
     const siteCode = row.siteCode || row.code || siteCodeFromLabel(row.location);
-    orders.push({
+    // A schedule entry can name a site the table has not seen (a one-off); register
+    // it rather than leave a dangling siteCode — same as findOrCreateLocationByCode.
+    if (siteCode && row.name && !Store.get('sites').some(x => x.code === siteCode)) {
+      Store.get('sites').push({ code: siteCode, name: row.name, area: v6AreaOf(siteCode), active: true });
+    }
+    const was = row.id ? prior[row.id] : null;
+    const out = {
       id: row.id || newOrderId(siteCode, row.date),
       orderNumber: row.orderNumber || '',
       siteCode,
       date: row.date || null,
       status,
-      lines: row.lines || row.items || [],
-      savedAt: row.savedAt || null
-    });
+      lines: (row.lines || row.items || []).map(it => ({ ...it })),
+      savedAt: row.savedAt || (was ? was.savedAt : null)
+    };
+    if (was && was.scheduleId) out.scheduleId = was.scheduleId;
+    if (was && was.lastSentAt) out.lastSentAt = was.lastSentAt;
+    orders.push(out);
   });
 }
 
@@ -1583,13 +1682,19 @@ function dispatchShipment(order, scheduleId) {
 
 // Distribution's side of the contract: turn an arriving manifest into pallets.
 // It reads only the shipment, never the order.
+// qty starts at 0, not the manifest amount: the coordinator on site is the first
+// person positioned to know the real case count — the ERP's per-pallet counts
+// can't be trusted and substitutions happen at fulfillment. plannedQty carries the
+// ordered amount forward as the head start (the edit dialog shows it as the
+// placeholder). Allocation divides qty, so nothing allocates until counted.
 function palletsFromShipment(shipment) {
   return (shipment.lines || []).map(l => ({
     id: uid(),
     desc: l.description,
     materialNumber: l.materialNumber,
     type: l.unit === 'units' ? 'bin' : 'cases',
-    qty: l.qty,
+    qty: 0,
+    plannedQty: l.qty,
     shipmentId: shipment.id,
     sourcePalletNum: l.palletNum || ''
   }));
@@ -1602,6 +1707,7 @@ function shipmentsFor(siteCode, date) {
 // Rows the app pushed in v4/v5 shape get folded into v6 shape before any hash or
 // serialization sees them. Central, so no push site has to know about the split.
 function normalizeTables() {
+  Store.get('schedules').forEach(sc => { const c = normalizeCadence(sc.cadence); if (sc.cadence !== c) sc.cadence = c; });
   const agencies = Store.get('agencies');
   for (let i = 0; i < agencies.length; i++) {
     if (agencies[i].code === undefined || agencies[i].scheduleIds === undefined) agencies[i] = normalizeAgency(agencies[i]);
@@ -1716,7 +1822,12 @@ function save() {
 function load() {
   Store.reset();
   const hadLocal = Store.readLocal();
-  if (hadLocal) { bindDbView(); checkDbVersion(); renderSidebar(); }
+  // Bind immediately — over empty tables if nothing is local yet — so db is never
+  // the bare {} while the GitHub pull is in flight. The init sequence renders the
+  // sidebar synchronously right after load() (the contributor's app loaded
+  // synchronously; v6 does not), and an unbound db made that render throw.
+  bindDbView();
+  if (hadLocal) { checkDbVersion(); renderSidebar(); }
 
   Store.pullAll().then(found => {
     if (found) {
@@ -1730,6 +1841,8 @@ function load() {
       normalizeTables();
       Store.markAllClean();
       Store.writeLocal();
+      // The order form cached its tables at init(), before this pull landed.
+      if (typeof OrderForm !== 'undefined' && OrderForm.refresh) OrderForm.refresh();
       renderSidebar();
     } else if (!hadLocal) {
       // Nothing local and nothing remote: first run on this stream.
@@ -1818,6 +1931,7 @@ function confirmSeedFromLive() {
       bindDbView();
       cur = null;
       save();
+      if (typeof OrderForm !== 'undefined' && OrderForm.refresh) OrderForm.refresh();
       renderSidebar();
       document.getElementById('screen-home').classList.add('active');
       document.getElementById('screen-dist').classList.remove('active');
@@ -1825,7 +1939,7 @@ function confirmSeedFromLive() {
       alert(`Pulled ${src.label} data (schema v${src.db.version}) and migrated to v${SCHEMA_VERSION}.\n\n`
         + `${Store.get('sites').length} sites · ${Store.get('agencies').length} agencies · `
         + `${Store.get('items').length} items · ${Store.get('schedules').length} schedules\n`
-        + `${(Store.get('legacy').reports || []).length} reports preserved\n\n`
+        + `${allClosedEvents().length} reports preserved\n\n`
         + `${(beforeBytes / 1024).toFixed(0)} KB in one file → ${(afterBytes / 1024).toFixed(0)} KB across ${TABLES.length} tables.`);
       showMigrationNoticeIfAny();
     } catch (e) {
@@ -1858,13 +1972,25 @@ function dateStrFromId(id){
 }
 function fmtDateShort(iso){return Shared.fmtDateShort(iso);}
 const DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const WEEK_PATTERN_NAMES={all:'Every week','1st3rd':'1st & 3rd week',  '2nd4th':'2nd & 4th week'};
 function dowOf(iso){return new Date(iso+'T00:00:00').getDay();}
+// Which occurrence of its weekday this date is within its month (1st, 2nd, 3rd...).
+function weekOfMonth(date){return Math.ceil(date.getDate()/7);}
+function matchesWeekPattern(date,weekPattern){
+  if(!weekPattern||weekPattern==='all')return true;
+  const wom=weekOfMonth(date);
+  if(weekPattern==='2nd4th')return wom===2||wom===4;
+  if(weekPattern==='1st3rd')return wom===1||wom===3;
+  return true;
+}
 // Advances a date to the next occurrence of the distribution's set weekday, walking forward
 // day-by-day from the day after `dateStr`. If no weekday is set, falls back to a flat +7 days.
 // This is deliberately self-correcting: if the date field ever drifted off-pattern (a holiday
 // hand-edit, a bad migration guess, etc.), this snaps back onto the correct weekday instead of
 // perpetuating the drift by blindly adding 7.
-function advanceToNextOccurrence(dateStr,dayOfWeek){
+// `weekPattern` (optional) additionally restricts which week(s) of the month count — e.g.
+// Vacaville only runs the 2nd & 4th Thursday, so a plain "next Thursday" isn't always right.
+function advanceToNextOccurrence(dateStr,dayOfWeek,weekPattern){
   const cur=new Date(dateStr+'T00:00:00');
   if(dayOfWeek===undefined||dayOfWeek===null||dayOfWeek===''){
     cur.setDate(cur.getDate()+7);
@@ -1872,7 +1998,7 @@ function advanceToNextOccurrence(dateStr,dayOfWeek){
   }
   const target=Number(dayOfWeek);
   cur.setDate(cur.getDate()+1);
-  while(cur.getDay()!==target){cur.setDate(cur.getDate()+1);}
+  while(cur.getDay()!==target||!matchesWeekPattern(cur,weekPattern)){cur.setDate(cur.getDate()+1);}
   return toISODate(cur);
 }
 // MASTER AGENCIES — single source of truth; each agency belongs to exactly one distribution via distId
@@ -1892,38 +2018,157 @@ function calcAlloc(dist,qty){
 }
 
 // SIDEBAR
-function renderSidebar(){
-  const list=document.getElementById('sidebar-dist-list');list.innerHTML='';
-  if(!db.distributions.length){
-    list.innerHTML='<div style="padding:8px 16px;font-size:12px;color:rgba(255,255,255,0.3);font-style:italic;">No distributions yet</div>';
-    return;
+let sidebarScheduleDate = todayStr();
+
+// Shared date state for the sidebar's distribution filter. The sidebar calendar is
+// now the ONLY visible date control in the app — the Order Form's own Date field is
+// hidden and driven entirely from here. Setting it here pushes into that hidden
+// field and fires its existing 'change' handling (see bindDateListener in
+// order-form-v6.js), which refreshes the Scheduled Order dropdown, tries to
+// auto-match a real order number, and reports back here via its own call to
+// setSidebarScheduleDate — so this function is safely re-entrant.
+function setSidebarScheduleDate(val){
+  const newVal=val||'';
+  if(newVal!==sidebarScheduleDate) sidebarShowAll=false; // date changed — go back to filtering by it
+  sidebarScheduleDate = newVal;
+  const ofDate=document.getElementById('of-date');
+  if(ofDate && ofDate.value!==newVal){
+    ofDate.value=newVal;
+    ofDate.dispatchEvent(new Event('change'));
   }
-  db.distributions.forEach((d,i)=>{
-    const div=document.createElement('div');
-    div.className='sidebar-dist-item'+(d.id===cur?' active-view':'');
-    div.onclick=()=>openDist(d.id);
-    div.innerHTML=`<div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]}"></div>
-      <div class="sdi-info">
-        <div class="sdi-name">${d.name}</div>
-        <div class="sdi-status" style="color:rgba(255,255,255,0.3);">${d.date?fmtDateShort(d.date):'—'}</div>
-      </div>`;
-    list.appendChild(div);
+  renderSidebar();
+}
+
+// Resolves which distribution(s) have an order scheduled for a given
+// date, using the Order Form module's schedule + location-code map.
+// Falls back to matching on code alone if a distribution's dayOfWeek
+// hasn't been set (see "Manage Distributions" > Day dropdown).
+function getScheduledDistsForDate(date){
+  if(!date) return [];
+  const entries=OrderForm.getScheduleForDate(date);
+  if(!entries.length) return [];
+  const weekday=new Date(date+'T00:00:00').getDay();
+  const matchedIds=new Set();
+  entries.forEach(entry=>{
+    // v6: schedules carry the site's CERES code, so the site->distribution join is
+    // a filter — not a reverse lookup through DIST_LOCATION_MAP's display names.
+    const candidates=db.distributions.filter(d=>d.siteCode===entry.code);
+    const dayMatched=candidates.filter(d=>d.dayOfWeek===weekday);
+    (dayMatched.length?dayMatched:candidates).forEach(d=>matchedIds.add(d.id));
   });
+  return db.distributions.filter(d=>matchedIds.has(d.id));
+}
+
+// V2: manual override for when the date filter has nothing to show — lets you browse
+// every distribution regardless of date (useful for testing, or for days the imported
+// schedule doesn't cover yet). Resets back to date-filtered whenever the date changes.
+let sidebarShowAll=false;
+
+function renderSidebarDistItems(dists){
+  const list=document.getElementById('sidebar-dist-list');list.innerHTML='';
+
+  // Group by day of week (Sun=0..Sat=6), preserving Mon-Fri work-week order.
+  // Distributions with no day set yet fall into an "Unscheduled" bucket at the end.
+  const dayOrder=[1,2,3,4,5,6,0];
+  const groups=new Map(); // dayOfWeek (or 'none') -> [dist,...]
+  dists.forEach(d=>{
+    const key=(d.dayOfWeek===undefined||d.dayOfWeek===null||d.dayOfWeek==='')?'none':d.dayOfWeek;
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(d);
+  });
+
+  const orderedKeys=[...dayOrder.filter(k=>groups.has(k)), ...(groups.has('none')?['none']:[])];
+
+  orderedKeys.forEach(key=>{
+    const header=document.createElement('div');
+    header.className='sidebar-section-label';
+    header.style.paddingTop='10px';
+    header.textContent=(key==='none')?'Unscheduled':DOW_NAMES[key];
+    list.appendChild(header);
+
+    groups.get(key).forEach(d=>{
+      const i=db.distributions.indexOf(d);
+      const div=document.createElement('div');
+      div.className='sidebar-dist-item'+(d.id===cur?' active-view':'');
+      div.onclick=()=>openDist(d.id);
+      const patternShort={'1st3rd':'1st & 3rd','2nd4th':'2nd & 4th'};
+      const patternBadge=(d.weekPattern&&d.weekPattern!=='all')?`<span style="font-size:9px;font-weight:600;color:#fde68a;margin-left:6px;">(${patternShort[d.weekPattern]||d.weekPattern} only)</span>`:'';
+      div.innerHTML=`<div class="sdi-dot" style="background:${STRIPES[i%STRIPES.length]}"></div>
+        <div class="sdi-info">
+          <div class="sdi-name">${d.name}${patternBadge}</div>
+          <div class="sdi-status" style="color:rgba(255,255,255,0.3);">${d.date?fmtDateShort(d.date):'—'}</div>
+        </div>`;
+      list.appendChild(div);
+    });
+  });
+}
+
+function toggleSidebarShowAll(){
+  sidebarShowAll=!sidebarShowAll;
+  renderSidebar();
+}
+
+
+function renderSidebar(){
+  try{
+    const hint=document.getElementById('sidebar-select-hint');
+    const noOrdersNote=document.getElementById('sidebar-no-orders-note');
+    const dateInput=document.getElementById('sidebar-schedule-date');
+    if(dateInput && dateInput.value!==sidebarScheduleDate) dateInput.value=sidebarScheduleDate;
+    if(hint) hint.style.display=(cur?'none':'block');
+
+    const scheduled=getScheduledDistsForDate(sidebarScheduleDate);
+
+    if(sidebarShowAll){
+      if(noOrdersNote) noOrdersNote.style.display='none';
+      renderSidebarDistItems(db.distributions);
+      return;
+    }
+
+    if(!scheduled.length){
+      if(noOrdersNote){
+        noOrdersNote.style.display='block';
+        noOrdersNote.innerHTML='No orders scheduled for this date. <a href="#" onclick="toggleSidebarShowAll();return false;" style="color:rgba(255,255,255,0.55);text-decoration:underline;">Show all distributions</a>';
+      }
+      if(hint) hint.style.display='none';
+      document.getElementById('sidebar-dist-list').innerHTML='';
+      return;
+    }
+    if(noOrdersNote) noOrdersNote.style.display='none';
+    renderSidebarDistItems(scheduled);
+  }catch(err){
+    console.error('renderSidebar failed:',err);
+    const list=document.getElementById('sidebar-dist-list');
+    if(list) list.innerHTML=`<div style="padding:8px 16px;font-size:11px;color:#fca5a5;">Could not show distributions — reload the page.</div>`;
+  }
+}
+
+function toggleSidebarMobile(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-backdrop').classList.toggle('open');
+}
+function closeSidebarMobile(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
 }
 
 function openDist(id){
   cur=id;const dist=getDist();if(!dist)return;
+  // The sidebar calendar is now the single source of truth for date — carry
+  // whatever's currently selected there into this distribution rather than
+  // showing whatever stale date it last had.
+  if(sidebarScheduleDate && dist.date!==sidebarScheduleDate){
+    dist.date=sidebarScheduleDate;
+    save();
+  }
   document.getElementById('screen-home').classList.remove('active');
   document.getElementById('screen-dist').classList.add('active');
   document.getElementById('t-title').textContent=dist.name;
   document.getElementById('t-sub').textContent=dist.date?fmtDateShort(dist.date):'';
-  ['orderform','checkin','lottery','pallets','settings'].forEach(t=>document.getElementById('tab-'+t).classList.remove('active'));
-  document.getElementById('tab-checkin').classList.add('active');
-  document.querySelectorAll('#dist-subnav .tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('nav-checkin').classList.add('active');
-  setTabActionBar(null);
-  renderSidebar();renderDistHero();renderCheckin();
+  renderSidebar();renderDistHero();
+  switchTab('orderform',document.getElementById('nav-orderform'));
   document.getElementById('scroll-area').scrollTop=0;
+  closeSidebarMobile(); // on phones/tablets the sidebar is an overlay — picking a distribution should get out of the way and show it
 }
 
 function setTabActionBar(tab){
@@ -1952,9 +2197,10 @@ function switchTab(tab,btn){
   else if(tab==='settings')renderSettings();
 }
 
-// SUPERSEDED by dispatchShipment() + palletsFromShipment(): the order half and
-// the distribution half now meet at the shipment manifest instead of here. Kept
-// in place rather than removed, unreferenced by v6.
+// SUPERSEDED for sending by dispatchShipment() + palletsFromShipment(): the order
+// half and the distribution half now meet at the shipment manifest instead of
+// here. Still called by confirmSendToPallets() for its "add N pallets?" preview
+// count only — it filters exactly as dispatchShipment does, so the numbers agree.
 function mapOrderItemsToPallets(orderItems){
   const out=[];
   (orderItems||[]).forEach(it=>{
@@ -1962,11 +2208,13 @@ function mapOrderItemsToPallets(orderItems){
     const desc=(it.description||materialNumber||'').trim();
     if(!materialNumber&&!desc)return;
     const qtyRaw=parseFloat(it.needToPull);
-    const qty=isNaN(qtyRaw)?0:(it.pullUnit==='CS'||it.pullUnit==='PLT'?Math.floor(qtyRaw):Math.round(qtyRaw*100)/100);
-    if(qty<=0&&!materialNumber&&!desc)return;
+    const plannedQty=isNaN(qtyRaw)?0:(it.pullUnit==='CS'||it.pullUnit==='PLT'?Math.floor(qtyRaw):Math.round(qtyRaw*100)/100);
     let type='cases';
     if(it.pullUnit==='BIN'||it.pullUnit==='LBS')type='bin';
-    out.push({id:uid(),desc,materialNumber:materialNumber||'',type,qty:qty||0,sourcePalletNum:it.palletNum||''});
+    // qty starts blank (0), not the ordered amount — the real case count is only known once
+    // the coordinator is physically at the remote distribution pulling and counting product.
+    // plannedQty keeps what was ordered around as reference/metadata, unused by the UI today.
+    out.push({id:uid(),desc,materialNumber:materialNumber||'',type,qty:0,plannedQty,sourcePalletNum:it.palletNum||''});
   });
   return out;
 }
@@ -1990,7 +2238,7 @@ function applyOrderFormToPallets(mode){
     const ships=Store.get('shipments');
     ships.splice(ships.indexOf(shipment),1);
     order.status='draft';
-    alert('No items with quantities to send. Add items in Order Form first.');
+    alert('No items to send yet. Add items in Order Form first.');
     return;
   }
   if(mode==='replace'){
@@ -2014,11 +2262,20 @@ function applyOrderFormToPallets(mode){
   switchTab('pallets',document.getElementById('nav-pallets'));
 }
 
+// V2: automatically mirrors the Order Form's items into this distribution's Pallets tab
+// every time the order is saved or printed — no manual "Send to Pallets" click needed.
+// Unlike a plain replace, this preserves each existing pallet's id and "done" checkmark
+// when a pallet for that same material number (or, lacking one, that same description)
+// already exists, so re-saving/re-printing an order mid-pack doesn't wipe out progress
+// warehouse staff already made. Pallets whose item was removed from the order form are
+// dropped; new items become new pallet rows. Silently does nothing if there's nothing
+// with a quantity to send yet — this runs on every save, so it must never alert/interrupt.
+
 function confirmSendToPallets(){
   const d=getDist();if(!d)return;
   OrderForm.flush();
   const mapped=mapOrderItemsToPallets(OrderForm.getItems());
-  if(!mapped.length){alert('No items with quantities to send. Add items in Order Form first.');return;}
+  if(!mapped.length){alert('No items to send yet. Add items in Order Form first.');return;}
   const existing=(d.pallets||[]).length;
   document.getElementById('conf-title').textContent='Send to Pallets?';
   document.getElementById('conf-msg').innerHTML=existing
@@ -2063,6 +2320,9 @@ function renderMgrDistList(){
           <option value="">Day…</option>
           ${DOW_NAMES.map((nm,idx)=>`<option value="${idx}" ${d.dayOfWeek===idx?'selected':''}>${nm}</option>`).join('')}
         </select>
+        <select onchange="setDistWeekPattern('${d.id}',this.value)" style="width:auto;flex-shrink:0;margin-right:6px;font-size:12px;padding:5px 6px;" title="Which week(s) of the month this distribution runs — e.g. Vacaville is 2nd &amp; 4th only">
+          ${Object.entries(WEEK_PATTERN_NAMES).map(([val,label])=>`<option value="${val}" ${(d.weekPattern||'all')===val?'selected':''}>${label}</option>`).join('')}
+        </select>
         <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:6px 12px;margin-right:6px;" onclick="openManageAgencies('${d.id}')">👥 Agencies</button>
         <button onclick="removeManagedDist('${d.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
       </div>`).join('')
@@ -2071,6 +2331,11 @@ function renderMgrDistList(){
 function setDistDayOfWeek(id,val){
   const d=getDistById(id);if(!d)return;
   d.dayOfWeek=val===''?null:Number(val);
+  save();
+}
+function setDistWeekPattern(id,val){
+  const d=getDistById(id);if(!d)return;
+  d.weekPattern=val||'all';
   save();
 }
 function addManagedDist(){
@@ -2156,6 +2421,22 @@ function renderCheckin(){
     list.appendChild(row);
   });
 }
+// Unchecks every agency's check-in AND clears their "has an order" flags for
+// this distribution — doesn't touch the agency list itself (that's managed
+// separately under Manage Agencies), and doesn't touch pick order/late slots.
+function clearAllCheckins(){
+  const d=getDist();if(!d)return;
+  const hasCheckins=(d.checkedIn||[]).length>0;
+  const hasOrders=Object.values(d.orderStatus||{}).some(Boolean);
+  if(!hasCheckins&&!hasOrders){return;} // nothing to clear
+  if(!confirm(`Clear all check-ins and orders for ${d.name}? This unchecks every agency and clears their order status. This cannot be undone.`))return;
+  d.checkedIn=[];
+  d.orderStatus={};
+  save();
+  renderCheckin();
+  renderDistHero();
+}
+
 function toggleCheckin(id){
   const d=getDist();if(!d)return;
   d.checkedIn=d.checkedIn||[];
@@ -2505,7 +2786,12 @@ function openEditPalletQty(id){
   const d=getDist();if(!d)return;
   const p=d.pallets.find(x=>x.id===id);if(!p)return;
   document.getElementById('ep-desc').textContent=p.desc;
-  document.getElementById('ep-qty').value=p.qty;
+  const qtyEl=document.getElementById('ep-qty');
+  // Show blank (not a literal "0") when nothing's been counted yet, with the
+  // originally-ordered quantity as a placeholder hint — a reference point for
+  // the coordinator without presenting the order as if it were the real count.
+  qtyEl.value=p.qty?p.qty:'';
+  qtyEl.placeholder=p.plannedQty?`e.g. ${p.plannedQty}`:'e.g. 48';
   document.getElementById('ep-save').onclick=()=>{
     const raw=parseFloat(document.getElementById('ep-qty').value);
     if(isNaN(raw)||raw<0)return;
@@ -2518,7 +2804,7 @@ function openEditPalletQty(id){
 function confirmCloseWeek(){
   const d=getDist();if(!d)return;
   const missingMatNum=(d.pallets||[]).filter(p=>!p.materialNumber).length;
-  const nextDate=advanceToNextOccurrence(d.date||todayStr(),d.dayOfWeek);
+  const nextDate=advanceToNextOccurrence(d.date||todayStr(),d.dayOfWeek,d.weekPattern);
   document.getElementById('conf-title').textContent='Close This Week?';
   document.getElementById('conf-msg').innerHTML=`This will save a report, download a copy, and then clear all check-ins, the lottery order, order flags, and pallets for "${d.name}". Agencies and groups will be kept for next week. The distribution date will advance to ${fmtDateShort(nextDate)}${d.dayOfWeek===undefined||d.dayOfWeek===null?' (no usual day set for this distribution yet — just added 7 days; set one in Manage Distributions for it to self-correct)':''}.`
     +(missingMatNum?`<div style="margin-top:10px;color:#92400e;font-weight:600;">⚠ ${missingMatNum} pallet(s) here have no material number — they'll still be saved, but won't be usable in the CERES allocation upload later.</div>`:'');
@@ -2542,17 +2828,29 @@ function confirmCloseWeek(){
       return;
     }
     clearEventAfterClose(d,nextDate);              // 3. only now clear the open state
+    // The order form keeps its own copy of the date in its input, and switching
+    // tabs flushes that input back onto the distribution (saveData: dist.date =
+    // of-date). Left stale, the switchTab below would silently undo the advance —
+    // which is how Close Week has behaved since the two halves were merged (v23
+    // has the same sequence). Point the input at the new date before any flush.
+    const ofDate=document.getElementById('of-date');
+    if(ofDate)ofDate.value=nextDate;
+    // Keep the sidebar's date filter on the advanced date, or the distribution
+    // could vanish from the filtered list right after closing the week.
+    sidebarScheduleDate=nextDate;
     save();
     renderDistHero();renderCheckin();renderSidebar();
     switchTab('checkin',document.getElementById('nav-checkin'));
   };
   openModal('m-confirm');
 }
-function togglePalletBody(id){
-  const body=document.getElementById('pb-'+id),chev=document.getElementById('pc-'+id),open=body.classList.contains('open');
-  document.querySelectorAll('.pacc-body').forEach(b=>b.classList.remove('open'));
-  document.querySelectorAll('.pchev').forEach(c=>c.classList.remove('open'));
-  if(!open){body.classList.add('open');chev.classList.add('open')}
+function togglePickOrder(id){
+  const body=document.getElementById('pb-'+id);
+  const btn=document.getElementById('pt-'+id);
+  if(!body)return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  if(btn)btn.style.background=open?'':'var(--gray-100)';
 }
 function renderPallets(){
   const d=getDist();if(!d)return;renderDistHero();
@@ -2564,19 +2862,14 @@ function renderPallets(){
     const alloc=calcAlloc(d,p.qty);
     const unit=p.type==='bin'?'units':'cases';
     const leftover=alloc.leftover;
-    const allocSummary=alloc.count
-      ?`${alloc.perAgency} ${unit} each · ${alloc.count} agencies${leftover>0?` · ${leftover} leftover`:''}`
+    // Context line: agencies checked in + leftover + status. NOT the per-agency
+    // "each" count — that's its own prominent badge in the row already, and the
+    // old big allocation boxes below were dropped entirely since between the
+    // each-badge and this line, that info was already fully covered — no need
+    // to say the same three numbers three different ways.
+    const contextLine=alloc.count
+      ?`${alloc.count} agencies${leftover>0?` · ${leftover} leftover`:''}`
       :`no agencies checked in`;
-    const allocBoxes=`<div style="display:flex;gap:8px;padding:14px 18px;">
-      <div class="alloc-box" style="flex:1;margin:0;">
-        <div class="alloc-val">${alloc.perAgency} <span style="font-size:20px">${unit}</span></div>
-        <div class="alloc-lbl">per agency (${alloc.count} checked-in agencies)</div>
-      </div>
-      ${leftover>0?`<div class="alloc-box" style="flex:0;min-width:80px;margin:0;background:#FEF3DC;">
-        <div class="alloc-val" style="font-size:28px;color:#C47A1E;">${leftover}</div>
-        <div class="alloc-lbl">leftover</div>
-      </div>`:''}
-    </div>`;
     const done=!!(d.palletsDone||{})[p.id];
     const pickRows=ordSlots.length?ordSlots.map((slot,idx)=>{
       const hasOrder=slot.type==='solo'&&omap[slot.agency.id];
@@ -2589,25 +2882,25 @@ function renderPallets(){
     }).join(''):`<div style="padding:12px 18px;font-size:13px;color:var(--gray-500);font-style:italic">Run the lottery to see pick order.</div>`;
     const acc=document.createElement('div');acc.className='pacc';acc.style.opacity=done?'0.6':'1';
     acc.innerHTML=`
-      <div class="pacc-head" onclick="togglePalletBody('${p.id}')">
+      <div class="pacc-head">
         <div class="pnum ${done?'done':''}">${i+1}</div>
         <div class="pacc-info">
-          <div class="pacc-title">${p.materialNumber?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${p.materialNumber}</span>`:''}${p.desc} <span class="badge ${p.type==='bin'?'b-bin':'b-cases'}" style="font-size:10px;padding:1px 7px">${p.type==='bin'?'Bin':'Cases'}</span></div>
-          <div class="pacc-sub">${p.qty} ${unit} total · ${allocSummary} · ${done?'Complete':'Pending'}</div>
+          <div class="pacc-title-row">
+            <div class="pacc-title">${p.materialNumber?`<span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--gray-500);margin-right:6px">${p.materialNumber}</span>`:''}${p.desc} <span class="badge ${p.type==='bin'?'b-bin':'b-cases'}" style="font-size:10px;padding:1px 7px">${p.type==='bin'?'Bin':'Cases'}</span> <span class="pacc-sub">· ${p.qty} ${unit} total · ${contextLine} · ${done?'Complete':'Pending'}</span></div>
+            ${alloc.count?`<div class="pacc-eachbadge"><div class="pacc-eachval">${alloc.perAgency}</div><div class="pacc-eachlbl">each</div></div>`:''}
+          </div>
         </div>
-        ${done?'<span class="badge b-done">Done</span>':''}
-        <span class="pchev" id="pc-${p.id}">›</span>
+        <div class="pacc-actions">
+          <button class="btn ${done?'':'btn-green'} btn-sm" onclick="togglePalletDone('${p.id}')" title="${done?'Mark Incomplete':'Mark Complete'}">${done?'↺ Undo':'✓ Done'}</button>
+          <button class="btn btn-sm" style="color:var(--blue);border-color:var(--blue)" onclick="openEditPalletQty('${p.id}')" title="Edit Qty">✏</button>
+          <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="removePallet('${p.id}')" title="Remove">✕</button>
+          <button class="pacc-toggle" onclick="togglePickOrder('${p.id}')" title="Pick order &amp; allocation" id="pt-${p.id}">☰</button>
+        </div>
       </div>
-      <div class="pacc-body" id="pb-${p.id}">
-        ${allocBoxes}
+      <div class="pacc-body" id="pb-${p.id}" style="display:none;">
         <div style="padding:8px 0">
-          <div style="padding:0 18px 6px"><div class="section-hdr" style="margin:0">Pick order &amp; allocation</div></div>
+          <div style="padding:0 16px 4px"><div class="section-hdr" style="margin:0">Pick order &amp; allocation</div></div>
           ${pickRows}
-        </div>
-        <div style="padding:10px 18px;display:flex;gap:8px">
-          <button class="btn ${done?'':'btn-green'} btn-sm" style="flex:1" onclick="togglePalletDone('${p.id}');event.stopPropagation()">${done?'Mark Incomplete':'✓ Mark Complete'}</button>
-          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--blue);border-color:var(--blue)" onclick="openEditPalletQty('${p.id}');event.stopPropagation()">✏ Qty</button>
-          <button class="btn btn-sm" style="flex:0;padding:7px 12px;color:var(--red);border-color:var(--red)" onclick="removePallet('${p.id}');event.stopPropagation()">✕</button>
         </div>
       </div>`;
     cont.appendChild(acc);
@@ -2629,6 +2922,9 @@ function checkDateMismatch(d){
   if(actual!==d.dayOfWeek){
     el.textContent=`Heads up — this date falls on a ${DOW_NAMES[actual]}, not this distribution's usual ${DOW_NAMES[d.dayOfWeek]}. (Fine for a holiday shift — just flagging it.)`;
     el.style.display='block';
+  }else if(d.weekPattern&&d.weekPattern!=='all'&&!matchesWeekPattern(new Date(d.date+'T00:00:00'),d.weekPattern)){
+    el.textContent=`Heads up — this date is a ${DOW_NAMES[actual]}, but not this distribution's usual ${WEEK_PATTERN_NAMES[d.weekPattern]||d.weekPattern} of the month. (Fine for a holiday shift — just flagging it.)`;
+    el.style.display='block';
   }else{
     el.style.display='none';
   }
@@ -2636,13 +2932,25 @@ function checkDateMismatch(d){
 function autoSave(){
   const d=getDist();if(!d)return;
   d.name=document.getElementById('s-name').value.trim()||d.name;
-  d.date=document.getElementById('s-date').value||d.date;
+  const newDate=document.getElementById('s-date').value||d.date;
+  const dateChanged=newDate!==d.date;
+  d.date=newDate;
   d.notes=document.getElementById('s-notes').value;
   save();
   document.getElementById('t-title').textContent=d.name;
   document.getElementById('t-sub').textContent=d.date?fmtDateShort(d.date):'';
   checkDateMismatch(d);
-  renderDistHero();renderSidebar();
+  renderDistHero();
+  // The sidebar calendar (and the Order Form's hidden date field) need to know
+  // about a date change made here too, or this distribution could silently
+  // vanish from the sidebar's date-filtered list, and the Order Form's
+  // Scheduled Order matching would go stale. setSidebarScheduleDate pushes the
+  // new date through the same logic as picking it in the sidebar directly.
+  if(dateChanged&&typeof setSidebarScheduleDate==='function'){
+    setSidebarScheduleDate(d.date);
+  }else{
+    renderSidebar();
+  }
 }
 function confirmDelete(){
   const d=getDist();if(!d)return;
@@ -3019,12 +3327,19 @@ function applyPreset(){
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+document.addEventListener('click',e=>{
+  const menu=document.getElementById('of-printMenu');
+  if(menu && menu.style.display!=='none' && !e.target.closest('.print-dropdown')){
+    menu.style.display='none';
+  }
+});
 </script>
 <script src="order-form-v6.js"></script>
 <script>
-OrderForm.init({getDb:()=>db,getDist:()=>getDist(),persist:save});
 initParallelRunUI();
 load();
+OrderForm.init({getDb:()=>db,getDist:()=>getDist(),persist:save});
+renderSidebar();
 </script>
 </body>
 </html>

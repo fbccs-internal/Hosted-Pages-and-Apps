@@ -113,7 +113,7 @@ explicit, never derived from the code.
 { "id": "PEDI-S2002-WED",
   "siteCode": "PEDI-S2002",
   "dayOfWeek": 3,
-  "cadence": "weekly",          // or "2nd-4th", per "Thursday VACAVILLE 2nd / 4th weeks"
+  "cadence": "all",             // "all" | "1st3rd" | "2nd4th" — the contributor's vocabulary
   "label": "Fairfield Wednesday",
   "active": true }
 ```
@@ -154,8 +154,10 @@ This replaces `distributions` as the recurring definition.
   "status": "open",                      // open -> closed
   "shipmentId": "shp-...",               // what arrived; null if none
   "checkedIn": ["CAMI-S1001", "..."],
-  "pallets": [ { "materialNumber": "APPL-D003", "desc": "...", "qty": 20.73,
-                 "unit": "units", "done": true, "shipmentLine": 3 } ],
+  "pallets": [ { "materialNumber": "APPL-D003", "desc": "...",
+                 "qty": 0,            // counted on site; 0 until the coordinator counts
+                 "plannedQty": 20.73, // the manifest amount, carried as the head start
+                 "unit": "units", "done": true, "shipmentId": "shp-..." } ],
   "lottery": [ { "num": "CAMI-S1001", "name": "...", "late": 1 } ],
   "notes": "",
   "closedAt": null,
@@ -222,6 +224,13 @@ join `events → shipments` on `shipmentId`; there is no return-channel table ye
 does not disturb this contract. Noting the attachment point now so it isn't surgery later.
 
 This replaces `mapOrderItemsToPallets()`, which is lossy and couples the two halves directly.
+
+**Manifest quantity is a head start, not a count.** `palletsFromShipment()` puts the manifest
+line quantity in `plannedQty` and sets `qty` to 0. The coordinator at the site is the first
+person positioned to know the real case count: the ERP's per-pallet case counts can't be
+trusted, and substitutions happen at fulfillment. Allocation divides `qty`, so nothing allocates
+until counted; the count dialog shows `plannedQty` as its placeholder, so the usual case is
+confirming a number rather than typing one. (Contributed with the v2 order-component work.)
 
 ---
 
@@ -405,13 +414,85 @@ New app file `CheckinPallets_25_mg.html`, seeded read-only from v5's `data-v5.js
 | Scope | Option B: incremental, master data first |
 | Roster attaches to | **Schedule** (site × day), not site — rosters differ by day at the same site |
 | Order/Distribution coupling | Two bounded contexts, one narrow shipment contract |
+| Order → pallets timing | Explicit dispatch only — **no live sync** (ontologically wrong, and it would write the remote file on every order-form keystroke) |
+| Pallet quantity | `qty` counted on site, starts at 0; manifest amount kept as `plannedQty` |
+| Week patterns | Contributor's `all` / `1st3rd` / `2nd4th`, stored as `schedule.cadence` |
+| One-off ("special") orders | Existing machinery — a site plus a planned order; no special type |
+| App as system of record | **No.** The ERP is the source of truth; the app is a working clipboard |
 
 ## 10. Open items
 
 - Real CERES codes for sites currently on filler codes.
 - Canonical item description list, to replace the longest-wins heuristic.
-- Whether `cadence` needs richer expression than `weekly` / `2nd-4th`.
+- Whether `cadence` needs richer expression than `all` / `1st3rd` / `2nd4th`.
 - Return channel from Distribution actuals back to warehouse reconciliation (§5) — attachment
   point identified, not designed.
 - `events-<year>.json` will need splitting again if a year's history outgrows the ceiling; not a
   concern at current volume (~15 events/year/site).
+
+---
+
+## 11. Contributor merge — order-component v2
+
+A contributor extended the order component from `CheckinPallets_23` + `order-form.js`. Their files
+are kept verbatim in `incoming/` as the reviewable baseline. Merged into the v6 line
+(`CheckinPallets_25_mg.html`, `order-form-v6.js`) by three-way merge — base `_23`, ours `_25`,
+theirs `v2` — so that "only they touched it" (splice in) and "both sides touched it" (needs a
+decision) were decided mechanically rather than by judgment. The order form merged with zero
+conflicts; the app with nine, all in regions v6 had already replaced.
+
+### Pass 1 — merged
+
+**Surface UI, taken as-is:** mobile sidebar (hamburger, backdrop, show-all), sidebar schedule-date
+filter, App Settings modal (the four admin actions moved out of the sidebar footer), print menu
+with orientation, pallet-row redesign, clear-all check-ins, pick-order toggle, special-order modal,
+order-number auto-match, full order-detail export.
+
+**Rewired onto v6's joins:**
+- `getScheduledDistsForDate` — their chain went date → AOR calendar → site code → reverse lookup
+  through `DIST_LOCATION_MAP` → distribution *names*. The map covers 3 of 14 distributions, so it
+  returned nothing for eleven. Now a filter on `schedule.siteCode`; same semantics otherwise.
+- `d.weekPattern` → an alias onto `schedule.cadence`, so every call site works unchanged.
+- `SEED_DOW` / `SEED_WEEK_PATTERN` → derived from the label (`dowFromLabel`, `cadenceFromLabel`).
+  Their seed was keyed `'Thursday Vacaville'`; the real distribution is `'Thursday VACAVILLE
+  2nd / 4th weeks'`, so an exact-name seed would have missed it.
+- The qty-on-site affordance, which landed in `mapOrderItemsToPallets` — no longer v6's send
+  path — ported to `palletsFromShipment` where the logic now lives.
+
+**Not taken:** their local-file deployment scaffolding — `fb_db_v2`, disabled sync, JSON
+export/import/reset, the debug panel and `traceV2`. v6 keeps its remote sync architecture.
+
+**Bugs found and fixed along the way** — the first two were already on `main`:
+1. *The order tables' projections broke under the order form's copy pattern* (phase 2). The order
+   form loads with `.map(o => ({...o}))`; a spread drops non-enumerable aliases, so schedule
+   entries lost `code`/`name`, saved orders lost `location`, and every save wrote `items` next to
+   `lines`. Rebuilt as a translation layer: `toScheduleEntry` / `toLogEntry` hand out plain copies
+   in the order form's shape, and `syncOrders` rebuilds clean rows field by field.
+2. *The seed button reported failure after succeeding* (phase 2). Its summary read the `legacy`
+   table phase 2 removed; it now counts `allClosedEvents()`.
+3. *Close Week's date advance was silently undone* — also in production v23. Switching tabs
+   flushes the order form, whose `saveData` writes its date input back onto the distribution; the
+   input still held the pre-close date. Fixed in v25 by syncing the input first. v23 not touched.
+4. *The first sidebar render threw on a fresh load.* Their init renders synchronously after
+   `load()`; v6's load is async. `db` is now bound over empty tables immediately.
+5. *The order form cached its tables once at `init()`*, before v6's async pull landed. Added
+   `OrderForm.refresh()`, called whenever the host rebinds `db`.
+
+### Pass 2 — deferred, needs a decision or a refactor
+
+- **Re-dispatch reconciliation.** Their `autoSyncOrderFormToPallets` carried a valuable idea —
+  reconcile by material number so re-sending keeps pallet ids, `done` flags and counted `qty`.
+  The live-sync trigger is out (decided); the reconciliation should apply on explicit dispatch
+  instead. v6's `applyOrderFormToPallets` currently replaces or appends, so re-sending discards
+  counts. Source is verbatim in `incoming/CheckinPallets_23_v2.html`.
+- **Pre-fill vs blank count.** `qty` starts at 0 with `plannedQty` as the placeholder. Whether it
+  should instead pre-fill from `plannedQty` and mark itself unconfirmed is open.
+- **Draft order date.** The draft's own `date` is set when created and not kept in step with the
+  distribution; the order form reads the distribution's date, so there is no visible effect.
+- **One-off distributions.** A special order creates the order half (site + planned order); the
+  distribution half is still "add a distribution". One action for both, if wanted.
+- **Duplicate v3 distribution pairs now both surface** on the sidebar date filter, since the join
+  finds every schedule at a site. Still left for manual cleanup, per §9.
+- Deferred by the ontology discussion: whether per-agency allocations are ever reported
+  (currently the movement is to the distribution), returns (weighed at the warehouse, not
+  recorded here), and the ERP import shape of the order export.
