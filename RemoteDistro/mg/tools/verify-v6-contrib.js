@@ -19,6 +19,10 @@
  *   I. surface UI      - hamburger, app settings, print menu, show-all, clear-all
  *   J. dropped         - no local-deployment scaffolding survived the merge
  *   K. isolation       - v6 still writes only under its own directory
+ *   L. re-send (pass 2) - through the real Send-to-Pallets dialog: counts, done
+ *                         marks and ids survive; unmatched and hand-added pallets
+ *                         are left alone; the preview matches the outcome;
+ *                         overwrite is off by default and restarts cleanly
  *
  * Usage: node tools/verify-v6-contrib.js [path/to/data.json]
  */
@@ -205,6 +209,113 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass: !!pass, detail
     return { date: vaca.date, sidebarDate: sidebarScheduleDate };
   });
   await page.waitForTimeout(1800);
+
+  // ---- L. re-send to pallets, through the real dialog (pass 2) -----------------
+  const L = await page.evaluate(async () => {
+    const out = {};
+    const s = await fetchSeedSource();
+    Store.reset(migrateToV6(s.db)); Store.tooNew = false; bindDbView(); normalizeTables(); OrderForm.refresh();
+    const d = db.distributions.find(x => x.name === 'Fairfield Tuesday');
+    setSidebarScheduleDate('2026-10-13');                 // a Tuesday
+    openDist(d.id);                                       // lands on the order form
+    let n = 0;
+    const line = (itemNum, description, needToPull, pullUnit) =>
+      ({ id: 'L' + (++n), itemNum, palletNum: '', description, needToPull, pullUnit, qtyPulled: '', returned: '', used: '' });
+    // Feed the order through the form itself: the send flushes the form, so lines
+    // set behind its back would be overwritten by whatever it had loaded.
+    const setOrder = lines => { orderFormFor(d).lines = lines; switchTab('orderform', document.getElementById('nav-orderform')); };
+    const dialog = () => ({
+      title: document.getElementById('conf-title').textContent,
+      msg: document.getElementById('conf-msg').textContent,
+      ok: document.getElementById('conf-ok').textContent,
+      okClass: document.getElementById('conf-ok').className,
+      box: document.getElementById('send-overwrite'),
+      cancel: document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)').textContent
+    });
+    const send = overwrite => {
+      confirmSendToPallets();
+      const before = dialog();
+      if (before.box && overwrite) { before.box.checked = true; before.box.onchange(); }
+      const after = dialog();
+      document.getElementById('conf-ok').onclick();
+      return { before, after };
+    };
+    const byMat = m => d.pallets.find(p => p.materialNumber === m);
+
+    // 1. first send — nothing on pallets yet
+    setOrder([line('APPL-D003', 'APPLES', '3', 'BIN'), line('BREA-D001', 'BREAD', '12', 'CS'), line('CARR-D004', 'CARROTS', '2', 'BIN')]);
+    const first = send(false);
+    out.first = { title: first.before.title, hasBox: !!first.before.box, count: d.pallets.length,
+                  allUncounted: d.pallets.every(p => p.qty === 0) };
+    const ids = { appl: byMat('APPL-D003').id, brea: byMat('BREA-D001').id, carr: byMat('CARR-D004').id };
+    const ship1 = d.shipmentId;
+    const ship1Lines = JSON.stringify(Store.get('shipments').find(x => x.id === ship1).lines);
+
+    // 2. the coordinator's work on site, through the real controls
+    switchTab('pallets', document.getElementById('nav-pallets'));
+    openEditPalletQty(ids.brea); document.getElementById('ep-qty').value = '12'; document.getElementById('ep-save').onclick();
+    togglePalletDone(ids.appl);
+    d.pallets.push({ id: uid(), desc: 'Donated Eggs', materialNumber: '', type: 'cases', qty: 5 });   // added by hand
+
+    // 3. the order changes: bread 12 -> 15, carrots dropped, potatoes added
+    setOrder([line('APPL-D003', 'APPLES', '3', 'BIN'), line('BREA-D001', 'BREAD', '15', 'CS'), line('POTA-D001', 'POTATOES', '4', 'CS')]);
+    let mapperCalls = 0;
+    const realMap = window.mapOrderItemsToPallets;
+    window.mapOrderItemsToPallets = function () { mapperCalls++; return realMap.apply(this, arguments); };
+    confirmSendToPallets();
+    const dlg = dialog();
+    const num = re => { const m = dlg.msg.match(re); return m ? +m[1] : null; };
+    out.update = { title: dlg.title, hasBox: !!dlg.box, boxDefault: dlg.box ? dlg.box.checked : null,
+                   ok: dlg.ok, okClass: dlg.okClass, cancel: dlg.cancel };
+    out.preview = { kept: num(/(\d+)\s*already on pallets/), added: num(/(\d+)\s*new from the order/),
+                    untouched: num(/(\d+)\s*not on this order/) };
+    document.getElementById('conf-ok').onclick();
+    window.mapOrderItemsToPallets = realMap;
+    out.mapperCalls = mapperCalls;
+    const appl = byMat('APPL-D003'), brea = byMat('BREA-D001'), carr = byMat('CARR-D004'), pota = byMat('POTA-D001');
+    const eggs = d.pallets.find(p => p.desc === 'Donated Eggs');
+    out.after = {
+      count: d.pallets.length,
+      breaKeptId: !!brea && brea.id === ids.brea, breaQty: brea && brea.qty, breaPlanned: brea && brea.plannedQty,
+      applKeptId: !!appl && appl.id === ids.appl, applDone: !!(appl && d.palletsDone[appl.id]),
+      carrLeft: !!carr && carr.id === ids.carr && carr.qty === 0,
+      eggsLeft: !!eggs && eggs.qty === 5,
+      potaNew: !!pota && pota.qty === 0 && pota.plannedQty === 4,
+      actual: { kept: [appl && appl.id === ids.appl, brea && brea.id === ids.brea].filter(Boolean).length,
+                added: pota ? 1 : 0, untouched: [carr, eggs].filter(Boolean).length }
+    };
+    const ships = Store.get('shipments');
+    out.ships = {
+      count: ships.length,
+      eventPointsAtNewest: d.shipmentId !== ship1 && d.shipmentId === ships[ships.length - 1].id,
+      firstUnchanged: JSON.stringify(ships.find(x => x.id === ship1).lines) === ship1Lines,
+      breaLinksNewest: !!brea && brea.shipmentId === d.shipmentId
+    };
+
+    // 4. unit change: bread arrives as a bin — not the pallet counted as 12 cases
+    setOrder([line('APPL-D003', 'APPLES', '3', 'BIN'), line('BREA-D001', 'BREAD', '2', 'BIN'), line('POTA-D001', 'POTATOES', '4', 'CS')]);
+    send(false);
+    const breads = d.pallets.filter(p => p.materialNumber === 'BREA-D001');
+    out.unit = { breadPallets: breads.length,
+                 casesKept: breads.some(p => p.id === ids.brea && p.type === 'cases' && p.qty === 12),
+                 binNew: breads.some(p => p.type === 'bin' && p.qty === 0) };
+
+    // 5. overwrite — start over from the current order
+    const ov = send(true);
+    out.overwrite = {
+      ok: ov.after.ok, okClass: ov.after.okClass, count: d.pallets.length,
+      allUncounted: d.pallets.every(p => p.qty === 0),
+      noDone: Object.keys(d.palletsDone || {}).length === 0,
+      eggsGone: !d.pallets.some(p => p.desc === 'Donated Eggs'),
+      idsNew: !d.pallets.some(p => Object.values(ids).includes(p.id))
+    };
+
+    // 6. the draft's date is the distribution's, and dates the shipment
+    out.dates = { dist: d.date, draft: orderFormFor(d).date,
+                  shipment: Store.get('shipments').find(x => x.id === d.shipmentId).date };
+    return out;
+  });
+
   await browser.close();
 
   // ---- report --------------------------------------------------------------------------
@@ -265,13 +376,44 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass: !!pass, detail
 
   const outside = puts.filter(u => !u.includes('/CheckinPallets/v6/'));
   ok('every write stays inside CheckinPallets/v6/', puts.length > 0 && outside.length === 0, outside.join(', ') || 'no PUT seen');
+  ok('first send to empty pallets asks to add, with no overwrite option', /Send to Pallets/.test(L.first.title) && !L.first.hasBox,
+    `${L.first.title} box=${L.first.hasBox}`);
+  ok(`first send adds every order line, uncounted (${L.first.count})`, L.first.count === 3 && L.first.allUncounted);
+  ok('re-send is one action: "Update pallets from order?"', /Update pallets from order/.test(L.update.title), L.update.title);
+  ok('the old Replace / Append choice is gone', L.update.cancel === 'Cancel' && L.update.ok === 'Update pallets',
+    `ok="${L.update.ok}" cancel="${L.update.cancel}"`);
+  ok('overwrite option is present and unchecked by default', L.update.hasBox && L.update.boxDefault === false);
+  ok('counted qty survives a re-send (bread stays 12)', L.after.breaKeptId && L.after.breaQty === 12,
+    `id kept=${L.after.breaKeptId} qty=${L.after.breaQty}`);
+  ok('planned amount refreshes from the new order (12 -> 15)', L.after.breaPlanned === 15, String(L.after.breaPlanned));
+  ok('done mark survives a re-send (apples)', L.after.applKeptId && L.after.applDone);
+  ok('a line dropped from the order leaves its pallet alone (carrots)', L.after.carrLeft);
+  ok('a pallet added by hand is left alone (donated eggs, 5)', L.after.eggsLeft);
+  ok('a new order line becomes a new, uncounted pallet (potatoes)', L.after.potaNew);
+  ok(`the preview matches what happened (${L.preview.kept} kept · ${L.preview.added} new · ${L.preview.untouched} left)`,
+    JSON.stringify(L.preview) === JSON.stringify(L.after.actual),
+    `preview ${JSON.stringify(L.preview)} vs actual ${JSON.stringify(L.after.actual)}`);
+  ok('the preview no longer goes through the superseded mapper', L.mapperCalls === 0, `${L.mapperCalls} calls`);
+  ok('each send records a new shipment and the event points at the newest', L.ships.count >= 2 && L.ships.eventPointsAtNewest);
+  ok('an earlier shipment is not modified by a re-send', L.ships.firstUnchanged);
+  ok('a kept pallet links to the newest shipment', L.ships.breaLinksNewest);
+  ok('a unit change is a different pallet: the counted cases stay, the bin arrives uncounted',
+    L.unit.casesKept && L.unit.binNew && L.unit.breadPallets === 2, JSON.stringify(L.unit));
+  ok('checking overwrite turns the action into "Start over"', L.overwrite.ok === 'Start over' && /btn-danger/.test(L.overwrite.okClass),
+    `${L.overwrite.ok} / ${L.overwrite.okClass}`);
+  ok(`overwrite leaves exactly the current order, uncounted (${L.overwrite.count})`, L.overwrite.count === 3 && L.overwrite.allUncounted);
+  ok('overwrite clears done marks and removes hand-added pallets', L.overwrite.noDone && L.overwrite.eggsGone);
+  ok('overwrite starts fresh pallets rather than reusing old ones', L.overwrite.idsNew);
+  ok(`the draft order's date follows the distribution (${L.dates.dist})`, L.dates.draft === L.dates.dist, `${L.dates.draft} vs ${L.dates.dist}`);
+  ok('the shipment is dated from the distribution', L.dates.shipment === L.dates.dist, `${L.dates.shipment} vs ${L.dates.dist}`);
+
   ok('no page errors across the whole run', errors.length === 0, errors.slice(0, 3).join(' | '));
 
   const pad = s => (s.length > 70 ? s.slice(0, 67) + '...' : s.padEnd(70));
-  console.log('\nPASS 1 — CONTRIBUTOR FEATURES ON v6\n' + '='.repeat(88));
+  console.log('\nCONTRIBUTOR FEATURES ON v6 — PASS 1 + PASS 2\n' + '='.repeat(88));
   let fail = 0;
   for (const c of checks) { if (!c.pass) fail++; console.log(`  ${c.pass ? 'PASS' : 'FAIL'}  ${pad(c.name)}  ${c.pass ? '' : c.detail}`); }
   console.log('='.repeat(88));
-  console.log(fail ? `\n${fail} CHECK(S) FAILED\n` : `\nALL ${checks.length} PASS-1 CHECKS OK\n`);
+  console.log(fail ? `\n${fail} CHECK(S) FAILED\n` : `\nALL ${checks.length} CONTRIBUTOR CHECKS OK (pass 1 + pass 2)\n`);
   process.exit(fail ? 1 : 0);
 })();

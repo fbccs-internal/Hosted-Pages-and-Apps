@@ -1610,6 +1610,9 @@ function orderFormFor(d) {
     orders.push(o);
     d.orderId = o.id;
   }
+  // The order form edits the distribution's date directly, so the draft's own date
+  // is just a copy of it — keep the copy in step. Dispatch dates the shipment from it.
+  if (d.date && o.date !== d.date) o.date = d.date;
   if (!Object.getOwnPropertyDescriptor(o, 'location')) {
     // The location the order half edits is the site, resolved from the schedule
     // rather than from a hardcoded name map.
@@ -1659,8 +1662,11 @@ function writeClipboard(v) {
 //
 // This replaces mapOrderItemsToPallets(), which copied order rows straight into
 // d.pallets and dropped the pull actuals on the way.
-function dispatchShipment(order, scheduleId) {
-  const lines = (order.lines || []).map(it => {
+// An order's manifest lines. Pure: shared by dispatchShipment(), which records a
+// shipment, and by the send dialog's preview, which must not — so the preview can
+// never disagree with what the send then does.
+function shipmentLinesFrom(order) {
+  return (order.lines || []).map(it => {
     const qtyRaw = parseFloat(it.needToPull);
     const unit = (it.pullUnit === 'BIN' || it.pullUnit === 'LBS') ? 'units' : 'cases';
     const qty = isNaN(qtyRaw) ? 0 : (unit === 'cases' ? Math.floor(qtyRaw) : Math.round(qtyRaw * 100) / 100);
@@ -1672,7 +1678,10 @@ function dispatchShipment(order, scheduleId) {
       palletNum: it.palletNum || ''
     };
   }).filter(l => l.materialNumber || l.description);
+}
 
+function dispatchShipment(order, scheduleId) {
+  const lines = shipmentLinesFrom(order);
   const shipment = {
     id: `shp-${order.date || todayStr()}-${order.siteCode || 'nosite'}-${Date.now().toString(36)}`,
     siteCode: order.siteCode || '',
@@ -1706,6 +1715,47 @@ function palletsFromShipment(shipment) {
     shipmentId: shipment.id,
     sourcePalletNum: l.palletNum || ''
   }));
+}
+
+// Same product on the same pallet? The contributor's key — material number when
+// either side has one (case-insensitive), otherwise the description — plus the
+// unit: a count only means something in its unit, so bread counted as 12 cases is
+// not carried onto a bread bin.
+function samePallet(a, b) {
+  if ((a.type || 'cases') !== (b.type || 'cases')) return false;
+  const am = (a.materialNumber || '').trim().toLowerCase();
+  const bm = (b.materialNumber || '').trim().toLowerCase();
+  if (am || bm) return am === bm;
+  return (a.desc || '').trim() === (b.desc || '').trim();
+}
+
+// Re-sending an order to pallets without losing the coordinator's work. Pure:
+// returns the new list and what happened, touches nothing. Rules decided in review
+// (SCHEMA.md §5, decisions in §11):
+//  - an order line matching an existing pallet keeps that pallet's id, its counted
+//    qty and its done mark (done marks are keyed by id); only the order-side fields
+//    are refreshed — description, planned amount, shipment link
+//  - an order line with no match becomes a new pallet, uncounted
+//  - a pallet with no matching order line is left exactly as it is, including
+//    pallets added by hand on site
+// Existing pallets keep their place on screen; new ones go at the end.
+//
+// The contributor's autoSyncOrderFormToPallets matched the same way but took every
+// field but the id from the fresh pallet — so, with qty now starting at 0, each
+// re-save of the order wiped the counts — and dropped unmatched pallets.
+function reconcilePallets(existing, fresh) {
+  const out = (existing || []).map(p => ({ ...p }));
+  const used = new Set();                       // indexes into out, not ids
+  const added = [];
+  fresh.forEach(f => {
+    const i = out.findIndex((p, k) => !used.has(k) && samePallet(p, f));
+    if (i < 0) { added.push(f); return; }
+    used.add(i);
+    out[i] = { ...out[i], desc: f.desc, materialNumber: f.materialNumber, plannedQty: f.plannedQty,
+               shipmentId: f.shipmentId, sourcePalletNum: f.sourcePalletNum };
+  });
+  return { pallets: out.concat(added),
+           stats: { kept: used.size, added: added.length, untouched: out.length - used.size } };
 }
 
 function shipmentsFor(siteCode, date) {
@@ -2209,10 +2259,10 @@ function switchTab(tab,btn){
   else if(tab==='settings')renderSettings();
 }
 
-// SUPERSEDED for sending by dispatchShipment() + palletsFromShipment(): the order
-// half and the distribution half now meet at the shipment manifest instead of
-// here. Still called by confirmSendToPallets() for its "add N pallets?" preview
-// count only — it filters exactly as dispatchShipment does, so the numbers agree.
+// SUPERSEDED by shipmentLinesFrom() / dispatchShipment() + palletsFromShipment():
+// the order half and the distribution half now meet at the shipment manifest. No
+// longer called by v6 — the send dialog's preview moved onto the same path as the
+// send. Kept in place rather than removed.
 function mapOrderItemsToPallets(orderItems){
   const out=[];
   (orderItems||[]).forEach(it=>{
@@ -2238,7 +2288,7 @@ function mapOrderItemsToPallets(orderItems){
 // a shipment, Distribution receives that shipment. The manifest is a durable,
 // immutable record of what actually went on the truck, so the two halves can be
 // pulled apart later without either learning the other's shapes.
-function applyOrderFormToPallets(mode){
+function applyOrderFormToPallets(overwrite){
   const d=getDist();if(!d)return;
   OrderForm.flush();
   const order=orderFormFor(d);
@@ -2253,11 +2303,14 @@ function applyOrderFormToPallets(mode){
     alert('No items to send yet. Add items in Order Form first.');
     return;
   }
-  if(mode==='replace'){
+  if(overwrite){
+    // Start over from the current order: exactly its lines, uncounted, nothing
+    // marked done, and pallets added by hand are gone too.
     d.pallets=mapped;
+    d.palletsDone={};
   }else{
-    d.pallets=d.pallets||[];
-    mapped.forEach(p=>d.pallets.push(p));
+    // Every pallet that survives keeps its id, so its done mark survives with it.
+    d.pallets=reconcilePallets(d.pallets,mapped).pallets;
   }
   d.shipmentId=shipment.id;
   // The catalog grows from whatever actually shipped.
@@ -2286,24 +2339,40 @@ function applyOrderFormToPallets(mode){
 function confirmSendToPallets(){
   const d=getDist();if(!d)return;
   OrderForm.flush();
-  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
-  if(!mapped.length){alert('No items to send yet. Add items in Order Form first.');return;}
-  const existing=(d.pallets||[]).length;
-  document.getElementById('conf-title').textContent='Send to Pallets?';
-  document.getElementById('conf-msg').innerHTML=existing
-    ? `This distribution already has <strong>${existing}</strong> pallet(s). Replace them with ${mapped.length} item(s) from the order form, or append as new pallets?`
-    : `Add ${mapped.length} pallet(s) from the order form to this distribution?`;
+  // Preview through the same functions the send uses, recording nothing, so the
+  // numbers shown are the numbers that happen.
+  const lines=shipmentLinesFrom(orderFormFor(d));
+  if(!lines.length){alert('No items to send yet. Add items in Order Form first.');return;}
+  const existing=d.pallets||[];
+  const ok=document.getElementById('conf-ok');
   const cancelBtn=document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
   const restoreCancel=()=>{cancelBtn.textContent='Cancel';cancelBtn.onclick=()=>closeModal('m-confirm');};
-  document.getElementById('conf-ok').textContent=existing?'Replace all':'Add to Pallets';
-  document.getElementById('conf-ok').className='btn btn-primary';
-  document.getElementById('conf-ok').onclick=()=>{closeModal('m-confirm');restoreCancel();applyOrderFormToPallets('replace');};
-  cancelBtn.textContent=existing?'Append instead':'Cancel';
-  cancelBtn.onclick=()=>{
-    closeModal('m-confirm');
-    restoreCancel();
-    if(existing)applyOrderFormToPallets('append');
-  };
+  if(!existing.length){
+    document.getElementById('conf-title').textContent='Send to Pallets?';
+    document.getElementById('conf-msg').innerHTML=`Add ${lines.length} pallet(s) from the order form to this distribution?`;
+    ok.textContent='Add to Pallets';
+    ok.className='btn btn-primary';
+    ok.onclick=()=>{closeModal('m-confirm');restoreCancel();applyOrderFormToPallets(false);};
+  }else{
+    const plan=reconcilePallets(existing,palletsFromShipment({id:null,lines})).stats;
+    document.getElementById('conf-title').textContent='Update pallets from order?';
+    document.getElementById('conf-msg').innerHTML=
+      `<div style="line-height:1.6;">`
+      +`<div><strong>${plan.kept}</strong> already on pallets — counts and done marks kept</div>`
+      +`<div><strong>${plan.added}</strong> new from the order, not yet counted</div>`
+      +`<div><strong>${plan.untouched}</strong> not on this order — left as they are</div>`
+      +`</div>`
+      +`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--r-md);cursor:pointer;font-size:13px;">`
+      +`<input type="checkbox" id="send-overwrite" style="margin-top:3px;flex-shrink:0;">`
+      +`<span><strong>Overwrite</strong> — start pallets over from this order. Clears every count and done mark, and removes pallets added by hand.</span>`
+      +`</label>`;
+    const box=document.getElementById('send-overwrite');
+    const sync=()=>{ok.textContent=box.checked?'Start over':'Update pallets';ok.className=box.checked?'btn btn-danger':'btn btn-primary';};
+    box.onchange=sync;sync();
+    ok.onclick=()=>{const overwrite=box.checked;closeModal('m-confirm');restoreCancel();applyOrderFormToPallets(overwrite);};
+  }
+  cancelBtn.textContent='Cancel';
+  cancelBtn.onclick=()=>{closeModal('m-confirm');restoreCancel();};
   openModal('m-confirm');
 }
 

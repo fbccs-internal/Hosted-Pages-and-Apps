@@ -218,6 +218,29 @@ and never interprets.
 A shipment is **immutable once dispatched.** Re-dispatching creates a new shipment; the event
 points at the newest. This is what lets the two halves diverge safely.
 
+**A re-dispatch updates the pallets; it doesn't replace them** (`reconcilePallets()`). The
+coordinator may already have counted, marked pallets done, or added pallets by hand, and a
+corrected order must not undo that work:
+
+- A manifest line that matches an existing pallet keeps that pallet's `id`, counted `qty` and
+  done mark. Only the order-side fields are refreshed: `desc`, `materialNumber`, `plannedQty`,
+  `shipmentId`, `sourcePalletNum`.
+- *Match* means the same material number (case-insensitive) when either side has one, otherwise
+  the same description, **and the same unit.** A count only means something in its unit, so 12
+  cases of bread is not carried onto a bread bin.
+- A manifest line with no match becomes a new pallet, uncounted.
+- A pallet with no matching line is left exactly as it is, including pallets added by hand.
+
+**Overwrite** is an explicit opt-out, unchecked by default. It starts the pallets over from the
+current order: exactly its lines, uncounted, nothing done, hand-added pallets gone. The send
+dialog previews either outcome with the same functions the send runs (`shipmentLinesFrom()`,
+`palletsFromShipment()`, `reconcilePallets()`), recording nothing. So the counts it shows are
+what the send will do.
+
+The shipment is dated from the draft order, and the draft's `date` follows the distribution's
+(`orderFormFor()`). The order form edits the distribution's date directly, so the draft's copy
+used to go stale after the first Close Week and shipments carried the draft's creation date.
+
 **Direction is one-way for now.** Distribution records its own actuals (`pallets[].qty`,
 per-agency allocation, leftover) on the event. Reconciling those back to the warehouse would
 join `events → shipments` on `shipmentId`; there is no return-channel table yet, and adding one
@@ -425,7 +448,9 @@ New app file `CheckinPallets_25_mg.html`, seeded read-only from v5's `data-v5.js
 | Roster attaches to | **Schedule** (site × day), not site — rosters differ by day at the same site |
 | Order/Distribution coupling | Two bounded contexts, one narrow shipment contract |
 | Order → pallets timing | Explicit dispatch only — **no live sync** (ontologically wrong, and it would write the remote file on every order-form keystroke) |
-| Pallet quantity | `qty` counted on site, starts at 0; manifest amount kept as `plannedQty` |
+| Pallet quantity | `qty` counted on site, starts at 0 — no pre-fill; manifest amount kept as `plannedQty` |
+| Re-sending an order to pallets | Reconcile (§5): matched pallets keep id, count and done mark; new lines arrive uncounted; pallets not on the order are left as they are |
+| Restarting the pallet flow | Explicit **Overwrite** in the send dialog, unchecked by default |
 | Week patterns | Contributor's `all` / `1st3rd` / `2nd4th`, stored as `schedule.cadence` |
 | One-off ("special") orders | Existing machinery — a site plus a planned order; no special type |
 | App as system of record | **No.** The ERP is the source of truth; the app is a working clipboard |
@@ -488,17 +513,53 @@ export/import/reset, the debug panel and `traceV2`. v6 keeps its remote sync arc
 5. *The order form cached its tables once at `init()`*, before v6's async pull landed. Added
    `OrderForm.refresh()`, called whenever the host rebinds `db`.
 
-### Pass 2 — deferred, needs a decision or a refactor
+### Pass 2 — merged
 
-- **Re-dispatch reconciliation.** Their `autoSyncOrderFormToPallets` carried a valuable idea —
-  reconcile by material number so re-sending keeps pallet ids, `done` flags and counted `qty`.
-  The live-sync trigger is out (decided); the reconciliation should apply on explicit dispatch
-  instead. v6's `applyOrderFormToPallets` currently replaces or appends, so re-sending discards
-  counts. Source is verbatim in `incoming/CheckinPallets_23_v2.html`.
-- **Pre-fill vs blank count.** `qty` starts at 0 with `plannedQty` as the placeholder. Whether it
-  should instead pre-fill from `plannedQty` and mark itself unconfirmed is open.
-- **Draft order date.** The draft's own `date` is set when created and not kept in step with the
-  distribution; the order form reads the distribution's date, so there is no visible effect.
+Decisions, in review: pallets not on a re-sent order are **left as they are**; counts **stay
+blank** until counted on site; re-sending **reconciles**, with an **Overwrite** option, unchecked
+by default, to restart the pallet flow from the current order.
+
+- **Re-send reconciliation** — the rules are in §5. The contributor's idea was right: match on
+  material number, fall back to description, keep the pallet's id so its done mark survives.
+  But their `autoSyncOrderFormToPallets` took every field *except* the id from the fresh
+  pallet, so it kept done marks and reset every count to 0. With counts now starting at 0, each
+  re-save of the order would have wiped them. It also dropped every pallet not on the new order,
+  including ones added by hand. Their live trigger stays out (decided); the reconciliation now
+  runs on the explicit send. That replaces v6's *Replace all* / *Append instead* choice. *Replace
+  all* discarded counts and done marks; *Append instead* added every order line again, so
+  pallets already sent appeared twice.
+- **One action, one question.** The send dialog is *Update pallets from order?* It shows how many
+  pallets are kept, new, and left alone, plus an unchecked **Overwrite** box. Checking it turns
+  the button red and relabels it *Start over*. A first send, with no pallets yet, is unchanged:
+  *Send to Pallets?* / *Add to Pallets*.
+- **Blank count kept.** `qty` starts at 0 with `plannedQty` as the placeholder, no pre-fill.
+  Allocation divides `qty`, so nothing is allocated from an ERP number nobody on site confirmed.
+- **Unit is part of the match** (new; not in the contributor's key). A count carried across a
+  unit change would be a number in the wrong unit, so a line that changes unit arrives as a new,
+  uncounted pallet, and the old one is left alone.
+- **Preview can't disagree with the send.** The dialog used to count through the superseded
+  `mapOrderItemsToPallets`. It now previews through the send's own functions. The pure half of
+  `dispatchShipment` was split out as `shipmentLinesFrom()` so the preview records no shipment.
+  `mapOrderItemsToPallets` is no longer called by v6; it stays in the file, unremoved.
+
+**Bug found and fixed** — on `main` since phase 2:
+
+6. *Shipments were dated from the draft order's creation date.* Close Week recycles the draft for
+   the next week but never moved its date, and dispatch dates the shipment from the draft. So
+   after a distribution's first Close Week, every shipment carried the stale date: Sep 15 for the
+   Oct 13 week in the test. Nothing on screen showed it: reports join on `shipmentId`, and
+   nothing reads shipments by date yet (`shipmentsFor()` is unused). But the stored manifest was
+   wrong, and so was its id, which embeds the date. Pass 1's notes called the stale draft date
+   harmless; that was wrong. `orderFormFor()` now keeps the draft's date in step with the
+   distribution.
+
+**Checks** (`tools/verify-v6-contrib.js` §L) go through the real dialog and the real count and
+done controls: a first send; coordinator work (a count, a done mark, a hand-added pallet); a
+changed order; the preview against the outcome; shipment immutability; a unit change; Overwrite;
+dates. 23 checks. 14 of them fail against the pre-pass-2 app.
+
+### Still open — parked, not pass 2
+
 - **One-off distributions.** A special order creates the order half (site + planned order); the
   distribution half is still "add a distribution". One action for both, if wanted.
 - **Data integrity — a separate pass, sourced from the ERP.** Covers the three duplicate v3

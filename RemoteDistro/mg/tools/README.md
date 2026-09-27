@@ -73,7 +73,7 @@ Week's ordered write (archive appended and persisted before the open state is cl
 
 ## verify-v6-contrib.js
 
-Pass-1 checks for the contributor's order-component work merged into v6 (45 checks):
+Checks for the contributor's order-component work merged into v6, pass 1 and pass 2 (68 checks):
 
 ```bash
 node tools/verify-v6-contrib.js
@@ -86,3 +86,10 @@ phase-2 seed-button bug got past the migration suite. Covers the order-table tra
 special orders, week patterns, the siteCode join (and that `DIST_LOCATION_MAP` is never
 consulted), Close Week's pattern-aware advance, qty-on-site, live sync being off, the surface UI,
 that no local-deployment scaffolding survived, and write isolation.
+
+Pass 2 (§L) re-sends an order through the real *Send to Pallets* dialog after coordinator work
+done with the real count and done controls, and checks the reconciliation rules in SCHEMA.md §5:
+matched pallets keep id, count and done mark; new lines arrive uncounted; hand-added and dropped
+pallets are left alone; a unit change is a new pallet; the preview matches the outcome and
+records nothing; every send is a new immutable shipment; Overwrite (default unchecked) starts
+clean; the shipment carries the distribution's date.
