@@ -312,8 +312,9 @@ keys (`'1 Pallet'`) are migrated but flagged.
 
 **4. `schedules`** — from `distributions`, matched to sites by name. Duplicate pairs from the v3
 rename are **left as-is**; they are junk to be cleaned manually or truncated on a fresh start,
-and merging them automatically risks picking the wrong survivor. Empty shells migrate as
-`active:false` so they stay out of the way without being destroyed.
+and merging them automatically risks picking the wrong survivor. Every live distribution
+migrates `active: true`, including ones whose roster hasn't been entered yet — see §3 for what
+`active` means.
 
 **5. `orders`** — from `orderLog` + `orderSchedule` + every `distributions[].orderForm`. Parse
 `location` → `siteCode` from the ` - CODE` suffix. Mint synthetic ids for the 13 blank order
@@ -359,6 +360,14 @@ Two behaviours worth knowing:
 - **`archivedOnly` schedules.** Reports whose distribution was deleted get a schedule of their
   own so the foreign key resolves, marked `archivedOnly` and excluded from the distribution
   list. Without that flag, migrating would resurrect deleted distributions in the sidebar.
+- **`active` means one thing: live, as opposed to former.** A former distribution stays in
+  `schedules.json` (`active: false`, `archivedOnly: true`) only so its closed weeks still have
+  something to join to. It is not a feature flag and nothing in the UI reads it. Deleting a
+  distribution in the app therefore *retires* it if any closed week refers to it, and removes it
+  outright only if nothing does; records already retired are never touched. (Corrected after
+  pass 1: phase 1 set `active` from "has a roster", which marked eleven live distributions
+  inactive, and the delete path removed every archive-only record on any add or delete —
+  orphaning their reports — as well as the history of whatever was deleted.)
 - **The migration owns its input.** `migrateToV6` deep-copies the source before building
   tables. Without it the tables alias the source db, the app's first mutation reaches back into
   it, and a second run on the "same" source produces something different.
@@ -409,7 +418,8 @@ New app file `CheckinPallets_25_mg.html`, seeded read-only from v5's `data-v5.js
 |---|---|
 | Site codes not in `DEFAULT_LOCATIONS` | Provisional filler codes; real ones supplied later |
 | Item description conflicts | Longest wins, others kept in `altDescriptions[]`; canonical list later |
-| Duplicate distributions | Leave them; manual cleanup or fresh-start truncation later |
+| Duplicate distributions | Leave them; covered by a separate data-integrity pass sourced from the ERP |
+| `active` / inactive | Live vs former only — former kept so archive data has something to join to |
 | Duplicate empty orders | Collapse — test residue |
 | Scope | Option B: incremental, master data first |
 | Roster attaches to | **Schedule** (site × day), not site — rosters differ by day at the same site |
@@ -491,8 +501,13 @@ export/import/reset, the debug panel and `traceV2`. v6 keeps its remote sync arc
   distribution; the order form reads the distribution's date, so there is no visible effect.
 - **One-off distributions.** A special order creates the order half (site + planned order); the
   distribution half is still "add a distribution". One action for both, if wanted.
-- **Duplicate v3 distribution pairs now both surface** on the sidebar date filter, since the join
-  finds every schedule at a site. Still left for manual cleanup, per §9.
+- **Data integrity — a separate pass, sourced from the ERP.** Covers the three duplicate v3
+  pairs (Monday Vallejo, Tuesday Fairfield, Thursday Vallejo — all created in one sitting on
+  Sep 14 next to populated "Location Day" originals, and now both visible on the sidebar date
+  filter), Wednesday Fairfield's roster (lost when the original distribution was deleted; still
+  recoverable from the Sep 2 report snapshot), the seven distributions still awaiting rosters,
+  and the placeholder El Sobrante site code. Deleting a distribution also deletes its roster
+  with no confirmation — relevant to anyone cleaning up the duplicates by hand.
 - Deferred by the ontology discussion: whether per-agency allocations are ever reported
   (currently the movement is to the distribution), returns (weighed at the warehouse, not
   recorded here), and the ERP import shape of the order export.

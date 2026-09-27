@@ -1109,11 +1109,10 @@ function migrateToV6(src, notice) {
     while (takenIds.has(id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
     takenIds.add(id);
 
-    const hasRoster = (db.masterAgencies || []).some(a => a.distId === d.id);
     const sched = {
       id, siteCode, dayOfWeek: dow,
       cadence: d.weekPattern ? normalizeCadence(d.weekPattern) : cadenceFromLabel(d.name),
-      label: d.name || id, active: hasRoster, legacyId: d.id
+      label: d.name || id, active: true, legacyId: d.id
     };
     schedules.push(sched);
     scheduleByLegacyId[d.id] = sched;
@@ -1484,9 +1483,18 @@ function syncDistributions(list) {
     }
     keep.add(sched.id);
   });
-  // Anything dropped from the array is deleted from both tables.
+  // active/inactive exists for one reason: a former distribution stays in
+  // schedules.json so its closed weeks still have something to join to. So when a
+  // distribution is dropped from the list, retire it if any closed week refers to
+  // it, and only remove it outright if nothing does. Records already retired are
+  // never in the list and are left alone.
+  const referenced = new Set(allClosedEvents().map(e => e.scheduleId));
   for (let i = schedules.length - 1; i >= 0; i--) {
-    if (!keep.has(schedules[i].id)) { delete eventsOpen[schedules[i].id]; schedules.splice(i, 1); }
+    const sc = schedules[i];
+    if (sc.archivedOnly || keep.has(sc.id)) continue;
+    delete eventsOpen[sc.id];                    // the unclosed week goes, as before
+    if (referenced.has(sc.id)) { sc.active = false; sc.archivedOnly = true; }
+    else schedules.splice(i, 1);
   }
   distViews = next;
 }
@@ -1707,7 +1715,11 @@ function shipmentsFor(siteCode, date) {
 // Rows the app pushed in v4/v5 shape get folded into v6 shape before any hash or
 // serialization sees them. Central, so no push site has to know about the split.
 function normalizeTables() {
-  Store.get('schedules').forEach(sc => { const c = normalizeCadence(sc.cadence); if (sc.cadence !== c) sc.cadence = c; });
+  Store.get('schedules').forEach(sc => {
+    const c = normalizeCadence(sc.cadence); if (sc.cadence !== c) sc.cadence = c;
+    // Live means active; only a former distribution kept for archive joins is not.
+    const a = !sc.archivedOnly; if (sc.active !== a) sc.active = a;
+  });
   const agencies = Store.get('agencies');
   for (let i = 0; i < agencies.length; i++) {
     if (agencies[i].code === undefined || agencies[i].scheduleIds === undefined) agencies[i] = normalizeAgency(agencies[i]);
