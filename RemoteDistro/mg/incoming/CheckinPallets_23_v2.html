@@ -206,10 +206,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   body{overflow:auto;height:auto;}
   .screen{display:none!important;}
   #print-report{display:block!important;padding:0;margin:0;}
-  /* Visual rules for .pr-* live in REPORT_CSS (one source of truth, shared with the
-     standalone download). Only print-specific behaviour belongs here. */
   .pr-section{page-break-inside:avoid;}
-  .pr-table th{background:#2D1B69!important;color:white!important;}
+  .pr-table{width:100%;border-collapse:collapse;margin-bottom:0;}
+  .pr-table th{background:#2D1B69!important;color:white!important;padding:8px 12px;text-align:left;font-size:12px;}
+  .pr-table td{padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;}
+  .pr-table tr:nth-child(even) td{background:#F8F9FA!important;}
   .pr-header{background:#2D1B69!important;color:white!important;-webkit-print-color-adjust:exact!important;}
   h3.pr-section-title{page-break-before:auto;margin-top:20px;}
   table{page-break-inside:auto;}
@@ -292,7 +293,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <div id="sidebar-no-orders-note" style="display:none;">No orders scheduled for this date.</div>
       <div id="sidebar-dist-list"></div>
     </div>
-    <div id="parallel-badge" style="display:none;margin:auto 16px 12px;padding:6px 8px;border-radius:var(--r-md);background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;font-size:10px;line-height:1.4;text-align:center;letter-spacing:0.04em;"></div>
   </div>
   <div id="sidebar-backdrop" onclick="closeSidebarMobile()"></div>
 
@@ -541,7 +541,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <button class="btn" onclick="closeModal('m-app-settings');openReportsList()">🗂 Reports</button>
       <button class="btn" onclick="OrderForm.exportFullOrderDetail()">📊 Export Full Order Detail</button>
       <div style="font-size:11px;color:var(--gray-500);margin-top:-4px;padding:0 2px;">Exports the currently open distribution's order with full item detail (location, dates, pallet #s, quantities). Open a distribution first.</div>
-      <button id="btn-seed" class="btn" style="display:none;border-color:#d97706;color:#92400e;" onclick="closeModal('m-app-settings');confirmSeedFromLive()">⇣ Pull from older stream</button>
+      <button class="btn" onclick="exportV2Data()">⬇ Export Data</button>
+      <button class="btn" onclick="importV2Data()">⬆ Import Data</button>
+      <button class="btn btn-danger" onclick="resetV2TestData()">🔄 Reset Test Data</button>
+      <div id="v2-debug-info" style="font-size:10px;line-height:1.5;color:var(--gray-500);padding:8px 4px 0;border-top:1px solid var(--gray-200);margin-top:4px;font-family:monospace;"></div>
     </div>
   </div>
 </div>
@@ -712,1316 +715,505 @@ const Shared={
   }
 };
 const STRIPES=['#6D28D9','#C47A1E','#0E7490','#1A6E42','#922B21','#1A5E8F','#7C3AED','#B45309','#0F766E','#15803D','#B91C1C','#1D4ED8'];
-const GH_TOKEN='github_pat_11BL234YI0'+'zWA96g7tfolN_1OvWetQGonuNCpOx3w6QwSNQoTQkUP1Wbx1CI03U9S4OH3DIUKPkswIqJ6h';
+// V2 SAFETY: the GH_TOKEN/GH_API constants that used to live here (inherited from
+// the original production file) have been removed entirely. Remote sync is fully
+// disabled below (ghGet/ghPut are no-ops) and never used them anyway — but a live
+// credential has no business sitting in a file people download, so it's gone.
 
-// ---------------------------------------------------------------------------
-// STORAGE SEAM (schema v6 — multi-table)
-// ---------------------------------------------------------------------------
-// Third parallel stream. v23 writes data.json, v24 writes data-v5.json, this
-// writes a DIRECTORY of tables. None can reach another's storage, through
-// GitHub or through a shared browser key.
-//
-// CUTOVER: flip the two marked literals. Every other reference goes through
-// these constants, and IS_PARALLEL_RUN then hides the seed button and badge.
-const GH_REPO   = 'https://api.github.com/repos/fbccs-internal/publicappdata/contents/';
-const DATA_DIR  = 'CheckinPallets/v6/';   // <<< CUTOVER: 'CheckinPallets/'
-const LS_PREFIX = 'fb_v6:';               // <<< CUTOVER: 'fb_db:'
-const SCHEMA_VERSION = 6;
-const IS_PARALLEL_RUN = DATA_DIR !== 'CheckinPallets/';
-
-// Read-only seed sources. Never written to, by anything, ever.
-const SEED_SOURCES = [
-  { label: 'v5', api: GH_REPO + 'CheckinPallets/data-v5.json', version: 5 },
-  { label: 'v4', api: GH_REPO + 'CheckinPallets/data.json',    version: 4 }
+// One-time seed data used only during the v1→v2 migration, to backfill agencies for
+// distributions that either didn't exist yet or whose old per-distribution agency lists
+// were incomplete. See migrateDb().
+const SEED_AGENCIES=[
+{distName:'Monday El Sobrante',num:'ACDF-C1001',name:'Able Community Development Foundation'},
+{distName:'Monday El Sobrante',num:'BELS-C1001',name:'Beacon Light SDA'},
+{distName:'Monday El Sobrante',num:'CRPC-C1001',name:'Crescent Park Center'},
+{distName:'Monday El Sobrante',num:'GRIP-C1001',name:'GRIP - Souper Center'},
+{distName:'Monday El Sobrante',num:'LLMC-C1003',name:'LifeLong Brookside San Pablo'},
+{distName:'Monday El Sobrante',num:'MWOV-C1001',name:'Men and Women of Valor'},
+{distName:'Monday El Sobrante',num:'PRBC-C1002',name:'Providence Baptist Church- Pantry'},
+{distName:'Monday El Sobrante',num:'SICI-C1001',name:'Corrine Sain Senior and Family Community Center'},
+{distName:'Monday El Sobrante',num:'SJMB-C1001',name:'St. John Missionary Baptist Church'},
+{distName:'Monday El Sobrante',num:'UFRS-C1001',name:'Ujima: Rectory'},
+{distName:'Monday El Sobrante',num:'AWSC-C1001',name:'Appian Way SDA Church'},
+{distName:'Monday El Sobrante',num:'STCL-C1001',name:'St. Callistus'},
+{distName:'Monday El Sobrante',num:'SPFP-C1001',name:'San Pablo Food Pantry'},
+{distName:'Monday Vallejo',num:'BCAC-S1001',name:'Benicia C.A.C.'},
+{distName:'Monday Vallejo',num:'CSUM-S1001',name:'CSU Maritime Academy'},
+{distName:'Monday Vallejo',num:'FIFS-S1001',name:'Food Is Free Solano'},
+{distName:'Monday Vallejo',num:'IB4U-S1001',name:'Incredible Blessings 4 U'},
+{distName:'Monday Vallejo',num:'RTSC-S1001',name:'Rebuilding Together Solano'},
+{distName:'Monday Vallejo',num:'SBCV-S1001',name:'Second Baptist Church Vallejo'},
+{distName:'Monday Vallejo',num:'STBC-S1001',name:'St. Basil SVdP Conference'},
+{distName:'Monday Vallejo',num:'STBC-S1002',name:'Vallejo Adult School'},
+{distName:'Monday Vallejo',num:'STPE-S1001',name:'St. Paul\'s Episcopal Church'},
+{distName:'Monday Vallejo',num:'VJSC-S1001',name:'Vallejo SDA'},
+{distName:'Monday Vallejo',num:'ASHC-S1001',name:'Amador St Hope Center Pantry'},
+{distName:'Monday Vallejo',num:'BRCC-S1001',name:'Bridgeway Church'},
+{distName:'Monday Vallejo',num:'EMAR-S1001',name:'Emmanuel Arms'},
+{distName:'Monday Vallejo',num:'FBOV-S1001',name:'First Baptist of Vallejo'},
+{distName:'Tuesday Concord',num:'AGHC-C2001',name:'AG Health Care: Los Cerros'},
+{distName:'Tuesday Concord',num:'BACN-C2001',name:'Bay Area Crisis Nursery'},
+{distName:'Tuesday Concord',num:'BACR-C3001',name:'Bay Area Comm. Res. ECRC'},
+{distName:'Tuesday Concord',num:'BBCC-C2002',name:'BiBett: Ozanam Center'},
+{distName:'Tuesday Concord',num:'CCAR-C3002',name:'Vistability GMC Concord'},
+{distName:'Tuesday Concord',num:'CTKC-C2001',name:'Christ the King Church'},
+{distName:'Tuesday Concord',num:'DIAD-C2002',name:'Dianne Adair DC: Bancroft'},
+{distName:'Tuesday Concord',num:'DIAD-C2010',name:'Dianne Adair DC: Tice Creek'},
+{distName:'Tuesday Concord',num:'GSLC-C2001',name:'Good Shepherd Lutheran Church'},
+{distName:'Tuesday Concord',num:'MHSI-C2001',name:'Mental Health Systems Inc.'},
+{distName:'Tuesday Concord',num:'NOCC-C2001',name:'North Creek Church'},
+{distName:'Tuesday Concord',num:'PABC-C2001',name:'Refuge Food Pantry'},
+{distName:'Tuesday Concord',num:'PHSD-C2001',name:'Pleasant Hill SDA Comm. Serv.'},
+{distName:'Tuesday Concord',num:'QOAS-C2001',name:'Queen of all Saints SVdP'},
+{distName:'Tuesday Concord',num:'SBCM-C2001',name:'Second Baptist Church-Martinez'},
+{distName:'Tuesday Concord',num:'SMPS-C2001',name:'St. Mary\'s Parish SVDP'},
+{distName:'Tuesday Concord',num:'TOTA-C2001',name:'Turn On To America'},
+{distName:'Tuesday Concord',num:'WCPC-C2001',name:'Walnut Creek Presbyterian'},
+{distName:'Tuesday Concord',num:'SLIF-C2002',name:'Support Life Foundation: Concord'},
+{distName:'Tuesday Concord',num:'MAED-C2001',name:'Martinez Adult Education'},
+{distName:'Tuesday Concord',num:'STND-C2001',name:'STAND'},
+{distName:'Tuesday Fairfield',num:'ARSU-S2002',name:'Archway Recovery Services:Home'},
+{distName:'Tuesday Fairfield',num:'BCCF-S2001',name:'Bethel Community Church of Fairfield'},
+{distName:'Tuesday Fairfield',num:'CNMP-S2001',name:'Casa Nova Mobile Park'},
+{distName:'Tuesday Fairfield',num:'FASC-S2001',name:'Fairfield SDA Church'},
+{distName:'Tuesday Fairfield',num:'MOWS-S2001',name:'Meals on Wheels---Solano'},
+{distName:'Tuesday Fairfield',num:'MCBC-S2001',name:'Mount Calvary Baptist Church'},
+{distName:'Tuesday Fairfield',num:'ROPF-S2001',name:'Rockville Presbyterian Fellows'},
+{distName:'Tuesday Fairfield',num:'SAMO-S2001',name:'Samoan Christian Fellowship'},
+{distName:'Tuesday Fairfield',num:'SMLC-S2001',name:'St. Mark\'s Lutheran Church'},
+{distName:'Tuesday Fairfield',num:'TLBC-S2001',name:'True Love Baptist Church'},
+{distName:'Tuesday Fairfield',num:'SOLC-S2001',name:'Solano Community College'},
+{distName:'Tuesday Fairfield',num:'CASS-S1001',name:'Catholic Charities of Solano'},
+{distName:'Tuesday Fairfield',num:'FSAD-S2001',name:'Fairfield - Suisun Adult Education'},
+{distName:'Tuesday Fairfield',num:'FCAC-S2001',name:'Fairfield CANB'},
+{distName:'Tuesday Fairfield',num:'FACC-S2001',name:'Fairfield City Church'},
+{distName:'Wednesday El Sobrante',num:'AOLC-C1001',name:'Anchor of Life Church'},
+{distName:'Wednesday El Sobrante',num:'CCAR-C1003',name:'Vistability GMC Richmond'},
+{distName:'Wednesday El Sobrante',num:'ECDC-C1001',name:'Ephesians Community Development Center'},
+{distName:'Wednesday El Sobrante',num:'FACM-C1001',name:'Family Church Ministries'},
+{distName:'Wednesday El Sobrante',num:'LEAH-C1001',name:'Leah\'s Pantry - Richmond'},
+{distName:'Wednesday El Sobrante',num:'LLMC-C1001',name:'LifeLong Medical Care'},
+{distName:'Wednesday El Sobrante',num:'LLMC-C1004',name:'LifeLong William Jenkins Richmond'},
+{distName:'Wednesday El Sobrante',num:'MCIN-C1001',name:'Multicultural Institute'},
+{distName:'Wednesday El Sobrante',num:'MWWC-C1001',name:'Meals on Wheels West Contra Costa County'},
+{distName:'Wednesday El Sobrante',num:'NEGC-C1001',name:'New Gethsemane COGIC'},
+{distName:'Wednesday El Sobrante',num:'NRMB-C1001',name:'N Richmond Miss. Baptist: Soup Kit'},
+{distName:'Wednesday El Sobrante',num:'NRMB-C1002',name:'N Richmond Miss. Baptist: Pantry'},
+{distName:'Wednesday El Sobrante',num:'SJCC-C1001',name:'St. Jerome Catholic Church'},
+{distName:'Wednesday El Sobrante',num:'SLIF-C1001',name:'Support Life Foundation: Richmond'},
+{distName:'Wednesday El Sobrante',num:'STJO-C1001',name:'St. John the Baptist SVdP'},
+{distName:'Wednesday El Sobrante',num:'STPC-C1001',name:'Sojourner Truth Pres. Ch.'},
+{distName:'Wednesday El Sobrante',num:'STPC-C1002',name:'Sojourner Truth Ch. Grnt II'},
+{distName:'Wednesday El Sobrante',num:'TRFE-C1001',name:'True Fellowship Baptist Church'},
+{distName:'Wednesday El Sobrante',num:'SPSP-C1001',name:'St. Paul Conference SVdP'},
+{distName:'Wednesday El Sobrante',num:'CCCP-C1001',name:'Contra Costa College Pantry'},
+{distName:'Wednesday Fairfield',num:'LICH-S2001',name:'Liberty Church'},
+{distName:'Wednesday Fairfield',num:'STSC-S2001',name:'St. Stephen Christian Methodist Episcopal (CME) Church'},
+{distName:'Wednesday Fairfield',num:'SFCC-S2001',name:'Suisun Fairfield Congregational Church'},
+{distName:'Wednesday Fairfield',num:'EDGE-S2001',name:'The Edge Community Church'},
+{distName:'Wednesday Fairfield',num:'VASS-S3001',name:'Vacaville Social Services'},
+{distName:'Wednesday Fairfield',num:'ARSU-S2001',name:'Archway Recovery Service: Tabor'},
+{distName:'Wednesday Fairfield',num:'CAMI-S2002',name:'Caminar:  Laurel Creek'},
+{distName:'Wednesday Fairfield',num:'CAMI-S1001',name:'CAMINAR: GATEWAY'},
+{distName:'Wednesday Fairfield',num:'FSAD-S2001',name:'Fairfield-Suisun Adult Education'},
+{distName:'Wednesday Fairfield',num:'LGCM-S2001',name:'LOGIC Ministries'},
+{distName:'Wednesday Fairfield',num:'MTCA-S2001',name:'Mount Carmel SVdP'},
+{distName:'Wednesday Fairfield',num:'RVCS-S2001',name:'Rio Vista Food Pantry'},
+{distName:'Wednesday Fairfield',num:'SAFF-S2001',name:'Salvation Army Fairfield'},
+{distName:'Wednesday Fairfield',num:'SAVJ-S1001',name:'Salvation Army Vallejo'},
+{distName:'Wednesday Fairfield',num:'SAFF-S3002',name:'Salvation Army: Vacaville'},
+{distName:'Wednesday Fairfield',num:'STMP-S3001',name:'St. Mary\'s Catholic Church Vacaville'},
+{distName:'Wednesday Fairfield',num:'VFBC-S3001',name:'Vacaville First Baptist Church'},
+{distName:'Thursday Concord',num:'BBCC-C2003',name:'BiBett: Pueblo del Sol'},
+{distName:'Thursday Concord',num:'BBCC-C2007',name:'BiBett: Uilkema'},
+{distName:'Thursday Concord',num:'CISC-C2001',name:'Concord International SDA'},
+{distName:'Thursday Concord',num:'DIAD-C2003',name:'Dianne Adair DC: El Monte'},
+{distName:'Thursday Concord',num:'DIAD-C2004',name:'Dianne Adair DC: Highlands'},
+{distName:'Thursday Concord',num:'DIAD-C2005',name:'Dianne Adair DC: Pleasant Hill'},
+{distName:'Thursday Concord',num:'DIAD-C2006',name:'Dianne Adair DC: Sequoia'},
+{distName:'Thursday Concord',num:'DIAD-C2008',name:'Dianne Adair DC: Monte Gardens'},
+{distName:'Thursday Concord',num:'HICC-C2001',name:'Hillcrest Congregational Ch.'},
+{distName:'Thursday Concord',num:'JHAX-C2001',name:'Juvenile Hall Auxiliary'},
+{distName:'Thursday Concord',num:'LEAH-C2001',name:'Leah\'s Pantry - Walnut Creek'},
+{distName:'Thursday Concord',num:'LEAH-C2002',name:'Leah\'s Pantry - Pleasant Hill'},
+{distName:'Thursday Concord',num:'OPJU-C2001',name:'Opportunity Junction: Mt. Diablo Adult Education'},
+{distName:'Thursday Concord',num:'SFOA-C2001',name:'St. Francis of Assisi'},
+{distName:'Thursday Concord',num:'SHAR-C2001',name:'SHARE'},
+{distName:'Thursday Concord',num:'SHIN-C2001',name:'Shelter Inc: Mt. View House'},
+{distName:'Thursday Concord',num:'SLIF-C2001',name:'Support Life Foundation: Walnut Creek'},
+{distName:'Thursday Concord',num:'STBV-C2001',name:'St. Bonaventure\'s Church'},
+{distName:'Thursday Concord',num:'STCA-C2001',name:'St. Catherine SVdP'},
+{distName:'Thursday Concord',num:'TBCC-C2001',name:'The Bay Church: Compassion Ministries'},
+{distName:'Thursday Concord',num:'UFRS-C2004',name:'Ujima: La Casa Ujima'},
+{distName:'Thursday Concord',num:'WCCH-C2001',name:'Walnut Creek Church of Christ'},
+{distName:'Thursday Vallejo',num:'BGEG-S1001',name:'Boys & Girls Empowerment Group'},
+{distName:'Thursday Vallejo',num:'FMBC-S1001',name:'Friendship Missionary Baptist'},
+{distName:'Thursday Vallejo',num:'GSMB-S1001',name:'Good Samaritan Miss. Baptist'},
+{distName:'Thursday Vallejo',num:'HOOA-S1001',name:'House Of Acts'},
+{distName:'Thursday Vallejo',num:'SHLO-S1001',name:'Shiloh: COGIC Pantry'},
+{distName:'Thursday Vallejo',num:'STDC-S1001',name:'St. Dominic\'s SVdP'},
+{distName:'Thursday Vallejo',num:'FUMC-S1001',name:'Wayside United Methodist Church'},
+{distName:'Thursday Vallejo',num:'ACVJ-S1001',name:'Antioch COGIC'},
+{distName:'Thursday Vallejo',num:'CACC-S1001',name:'Calvary Comm Church'},
+{distName:'Thursday Vallejo',num:'CAMI-S1004',name:'Caminar-Case Management Program'},
+{distName:'Thursday Vallejo',num:'DIGO-S1001',name:'Divine Guidance Outreach'},
+{distName:'Thursday Vallejo',num:'FBCV-S1001',name:'Faith Food Friday\'s'},
+{distName:'Thursday Vallejo',num:'GEHO-S1001',name:'Genesis House'},
+{distName:'Thursday Vallejo',num:'LACL-S1001',name:'La Clinica:  North Vallejo'},
+{distName:'Thursday Vallejo',num:'OPCP-S1001',name:'Old Path COGIC'},
+{distName:'Thursday Antioch',num:'FIBC-C3001',name:'1st Baptist Church-Pantry'},
+{distName:'Thursday Antioch',num:'INCM-C3001',name:'Agape Intl. Church Ministries'},
+{distName:'Thursday Antioch',num:'AIHI-C3001',name:'Aim High: Garin School'},
+{distName:'Thursday Antioch',num:'AIHI-C3005',name:'Aim High: Pioneer'},
+{distName:'Thursday Antioch',num:'AMFC-C3001',name:'AMF Food Closet'},
+{distName:'Thursday Antioch',num:'AVGH-C3001',name:'Avalon Group Home: Almond Site'},
+{distName:'Thursday Antioch',num:'AVGH-C3005',name:'Avalon Group Home: Laurel (Connie Site)'},
+{distName:'Thursday Antioch',num:'AVGH-C3004',name:'Avalon Group Home: Magnolia'},
+{distName:'Thursday Antioch',num:'AVGH-C3003',name:'Avalon Group Homes: Brentwood'},
+{distName:'Thursday Antioch',num:'AVGH-C3008',name:'Avalon Group Homes: Solitude'},
+{distName:'Thursday Antioch',num:'BBCC-C3006',name:'BiBett: East Cnty Wollam'},
+{distName:'Thursday Antioch',num:'COGS-C3001',name:'Church of the good shepherd'},
+{distName:'Thursday Antioch',num:'AVGH-C3006',name:'Delta Residential Legends'},
+{distName:'Thursday Antioch',num:'AVGH-C3007',name:'Delta Residential: Ridgecrest'},
+{distName:'Thursday Antioch',num:'AVGH-C3002',name:'Delta Residential: Stony Hill'},
+{distName:'Thursday Antioch',num:'ESHM-C3001',name:'En Su Habitacion'},
+{distName:'Thursday Antioch',num:'FAWC-C3002',name:'Family Life Center Mens GH'},
+{distName:'Thursday Antioch',num:'FAWC-C3003',name:'Family Life Center Womens GH'},
+{distName:'Thursday Antioch',num:'FAWC-C3001',name:'Family Worship Center Pantry'},
+{distName:'Thursday Antioch',num:'GBFC-C3001',name:'Grace Bible Fellowship Church'},
+{distName:'Thursday Antioch',num:'GRTE-C3001',name:'Grace Temple'},
+{distName:'Thursday Antioch',num:'GFMB-C3001',name:'Greater Faith Miss Baptist'},
+{distName:'Thursday Antioch',num:'HORC-C3001',name:'Holy Rosary - St. Vincent'},
+{distName:'Thursday Antioch',num:'JANR-C3002',name:'J and R Care Home - Dainty Avenue'},
+{distName:'Thursday Antioch',num:'JANR-C3001',name:'J and R Care Home - Sarah Street'},
+{distName:'Thursday Antioch',num:'LIMI-C3002',name:'Light Ministries Church Pntry'},
+{distName:'Thursday Antioch',num:'LIMI-C3001',name:'Light Ministries Church Soup'},
+{distName:'Thursday Antioch',num:'LMCF-C3001',name:'Los Medanos College Foundation'},
+{distName:'Thursday Antioch',num:'MEHO-C3002',name:'Mercy Housing Brentwood'},
+{distName:'Thursday Antioch',num:'NECC-C3001',name:'New Covenant Church'},
+{distName:'Thursday Antioch',num:'OSCI-C3001',name:'Oakley Senior Citizens'},
+{distName:'Thursday Antioch',num:'PFLM-C3001',name:'Power For Living Ministries'},
+{distName:'Thursday Antioch',num:'SPMC-C3001',name:'St. Peter Martyr Church'},
+{distName:'Thursday Antioch',num:'SVCC-C3001',name:'St. Vincent de Paul- CC'},
+{distName:'Thursday Antioch',num:'TBCC-C3001',name:'The Bay Church:  Brentwood Campus'},
+{distName:'Thursday Antioch',num:'TLPP-C3001',name:'The Landing Place Pantry'},
+{distName:'Thursday Antioch',num:'VICC-C3001',name:'Visions Christian Center'},
+{distName:'Thursday Vacaville',num:'CRST-S3001',name:'Cornerstone Church'},
+{distName:'Thursday Vacaville',num:'DIFS-S3001',name:'Dixon Family Services'},
+{distName:'Thursday Vacaville',num:'SFLD-S3001',name:'SVdP Food Locker Dixon'},
+{distName:'Thursday Vacaville',num:'SRCF-S3001',name:'SonRise Community Fellowship'},
+{distName:'Thursday Vacaville',num:'STMP-S3001',name:'St. Mary\'s Parish Food Locker'},
+{distName:'Thursday Vacaville',num:'STMP-S3002',name:'St. Mary\'s Parish Soup Kitchen'},
+{distName:'Thursday Vacaville',num:'VASS-S3001',name:'Vacaville Soc Srvcs: Opportunity House'},
+{distName:'Thursday Vacaville',num:'VFBC-S3001',name:'Vacaville First Baptist Church'},
+{distName:'Thursday Vacaville',num:'VVST-S3001',name:'Vacaville Storehouse'},
+{distName:'Friday Antioch',num:'BUMC-C3001',name:'Hope House - BUMC'},
+{distName:'Friday Antioch',num:'CHRE-C2001',name:'Chosen Remnant'},
+{distName:'Friday Antioch',num:'COGS-C3001',name:'Church of Good Shepherd SVDP'},
+{distName:'Friday Antioch',num:'DACO-C3001',name:'Diane Ave. Church of Christ'},
+{distName:'Friday Antioch',num:'FIFC-C3001',name:'First Family Church'},
+{distName:'Friday Antioch',num:'GECH-C3001',name:'Genesis Church'},
+{distName:'Friday Antioch',num:'GRTE-C3001',name:'Grace Temple COGIC'},
+{distName:'Friday Antioch',num:'IMHE-C3001',name:'Immaculate Heart SVdP'},
+{distName:'Friday Antioch',num:'KICH-C3001',name:'Kings Chapel'},
+{distName:'Friday Antioch',num:'LIME-C3001',name:'Lighthouse Mentoring: Garden'},
+{distName:'Friday Antioch',num:'LIFA-C3001',name:'Lilliput Families'},
+{distName:'Friday Antioch',num:'LACM-C3001',name:'Love A Child Missions'},
+{distName:'Friday Antioch',num:'NEDC-C3001',name:'New Destiny Church'},
+{distName:'Friday Antioch',num:'OPJU-C3001',name:'Opportunity Junction'},
+{distName:'Friday Antioch',num:'PUMC-C3002',name:'Pittsburg UMC Pantry'},
+{distName:'Friday Antioch',num:'QOTW-C3001',name:'Queen of the World SVdP'},
+{distName:'Friday Antioch',num:'RVTS-C3001',name:'Rivertown Veterans Thrift Store'},
+{distName:'Friday Antioch',num:'SEED-C3001',name:'Seed of Faith Church'},
+{distName:'Friday Antioch',num:'SHOW-C3001',name:'Showers of Blessings'},
+{distName:'Friday Antioch',num:'SLIF-C3001',name:'Support Life Foundation: Antioch'},
+{distName:'Friday Antioch',num:'SLIF-C3002',name:'Support Life Foundation: Brentwood'},
+{distName:'Friday Antioch',num:'STAN-C3001',name:'St. Anne Conference SVDP'},
+{distName:'Friday Antioch',num:'STAC-C3001',name:'St. Anthony Conference SVDP'}
 ];
 
-// The tables. `owner` records which half of the app writes each one — see
-// SCHEMA.md §2 and §6. Order and Distribution are two buildings that happen to
-// ship as one page; the only file both write is `items`, and those writes are
-// append-only (a material number seen for the first time), so they commute.
-//
-// `legacy` is the holding pen for the transactional tables. Phase 2 splits it
-// into orders / shipments / events-open / events-<year>. It is deliberately one
-// file for now so that no phase-1 user action has to write two files.
-const TABLES = [
-  { name: 'meta',       file: 'meta.json',        owner: 'shared',       init: () => ({ version: SCHEMA_VERSION, migrationNotice: null, lastExportAt: null, archiveYears: [] }) },
-  { name: 'sites',      file: 'sites.json',       owner: 'order',        init: () => [] },
-  { name: 'agencies',   file: 'agencies.json',    owner: 'distribution', init: () => [] },
-  { name: 'items',      file: 'items.json',       owner: 'shared',       init: () => [], append: true },
-  { name: 'schedules',  file: 'schedules.json',   owner: 'distribution', init: () => [] },
-  // --- Order building ---------------------------------------------------
-  { name: 'orders',     file: 'orders.json',      owner: 'order',        init: () => [] },
-  // The contract between the two halves: Order writes, Distribution reads.
-  { name: 'shipments',  file: 'shipments.json',   owner: 'order',        init: () => [] },
-  // --- Distribution ------------------------------------------------------
-  // Hot: the live working state, rewritten on every check-in. Kept apart from
-  // the archive so a checkbox tap no longer re-uploads years of frozen history.
-  { name: 'eventsOpen', file: 'events-open.json', owner: 'distribution', init: () => ({}) }
-  // Cold: events-<year>.json, registered on demand — see archiveTable().
-];
-
-// Closed events are partitioned by year so the archive stays bounded: it is
-// written once per Close Week and would otherwise grow without limit against the
-// same 1 MB ceiling v5 ran into. meta.archiveYears is the index of which exist,
-// so load needs no directory listing.
-function archiveName(year) { return 'events-' + year; }
-function archiveTable(year) {
-  const name = archiveName(year);
-  let t = TABLES.find(x => x.name === name);
-  if (!t) {
-    t = { name, file: name + '.json', owner: 'distribution', init: () => [], archiveYear: year };
-    TABLES.push(t);
-  }
-  if (!Store.t[name]) Store.t[name] = { data: [], sha: null, savedHash: null };
-  const meta = Store.t.meta && Store.t.meta.data;
-  if (meta) {
-    meta.archiveYears = meta.archiveYears || [];
-    if (!meta.archiveYears.includes(year)) meta.archiveYears.push(year);
-  }
-  return t;
-}
-function archiveYears() {
-  const meta = Store.t.meta ? Store.t.meta.data : null;
-  return (meta && meta.archiveYears) ? [...meta.archiveYears].sort() : [];
-}
-// Every closed event across every registered year, newest first — what the
-// reports list reads.
-function allClosedEvents() {
-  const out = [];
-  archiveYears().forEach(y => { const e = Store.t[archiveName(y)]; if (e) out.push(...e.data); });
-  return out.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) ||
-                            String(b.generatedAt || '').localeCompare(String(a.generatedAt || '')));
-}
-
-// ---------------------------------------------------------------------------
-// Store — one entry per table, each with its own sha and its own dirty state.
-// ---------------------------------------------------------------------------
-// Dirtiness is decided by hashing the serialized table rather than by asking
-// every mutation site to declare itself. That keeps save() a single call, as it
-// was in v5, while still uploading only the files that actually changed — which
-// is the whole point of the split. Checking in an agency now rewrites
-// legacy.json alone instead of the entire database.
-const Store = {
-  t: {},            // name -> { data, sha, savedHash }
-  tooNew: false,
-
-  def(name) { return TABLES.find(t => t.name === name); },
-  get(name) { return this.t[name].data; },
-
-  hash(v) {
-    // FNV-1a over the serialized table. Only ever compared against itself, so
-    // collision resistance is not a concern; cheapness is.
-    const s = JSON.stringify(v);
-    let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
-    return h.toString(16) + ':' + s.length;
-  },
-
-  reset(seed) {
-    // Drop previously registered archive years; the seed decides which exist now.
-    for (let i = TABLES.length - 1; i >= 0; i--) if (TABLES[i].archiveYear) TABLES.splice(i, 1);
-    Object.keys(this.t).forEach(k => { if (/^events-\d{4}$/.test(k)) delete this.t[k]; });
-    TABLES.forEach(t => {
-      this.t[t.name] = { data: (seed && seed[t.name] !== undefined) ? seed[t.name] : t.init(), sha: null, savedHash: null };
-    });
-    if (seed) {
-      Object.keys(seed).forEach(k => {
-        const m = /^events-(\d{4})$/.exec(k);
-        if (m) { archiveTable(+m[1]); this.t[k].data = seed[k]; }
-      });
-    }
-  },
-
-  dirtyNames() {
-    return TABLES.filter(t => this.hash(this.t[t.name].data) !== this.t[t.name].savedHash).map(t => t.name);
-  },
-
-  markAllClean() {
-    TABLES.forEach(t => { this.t[t.name].savedHash = this.hash(this.t[t.name].data); });
-  },
-
-  // ---- local ----
-  readLocal() {
-    let any = false;
-    TABLES.forEach(t => {
-      try {
-        const raw = localStorage.getItem(LS_PREFIX + t.name);
-        if (raw) { this.t[t.name].data = JSON.parse(raw); any = true; }
-      } catch (e) {}
-    });
-    return any;
-  },
-  writeLocal() {
-    TABLES.forEach(t => {
-      try { localStorage.setItem(LS_PREFIX + t.name, JSON.stringify(this.t[t.name].data)); } catch (e) {}
-    });
-  },
-
-  // ---- remote ----
-  async fetchTable(t) {
-    const res = await fetch(GH_REPO + DATA_DIR + t.file, {
-      headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' }
-    });
-    if (res.status === 404) { this.t[t.name].sha = null; return null; }
-    if (!res.ok) throw new Error(`GET ${t.file} -> ${res.status}`);
-    const json = await res.json();
-    if (!json.content) throw new Error(`${t.file} is too large for the contents API to return inline`);
-    this.t[t.name].sha = json.sha;
-    return JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g, '')))));
-  },
-
-  async pullAll() {
-    let found = 0;
-    // meta first: it indexes which archive years exist.
-    const meta = await this.fetchTable(this.def('meta'));
-    if (meta !== null) { this.t.meta.data = meta; found++; }
-    (this.t.meta.data.archiveYears || []).forEach(y => archiveTable(y));
-    for (const t of TABLES) {
-      if (t.name === 'meta') continue;
-      const data = await this.fetchTable(t);
-      if (data !== null) { this.t[t.name].data = data; found++; }
-    }
-    return found;
-  },
-
-  async pushTable(t, retrying) {
-    const entry = this.t[t.name];
-    const body = {
-      message: `${t.file}: update`,
-      content: btoa(unescape(encodeURIComponent(JSON.stringify(entry.data, null, 1))))
-    };
-    if (entry.sha) body.sha = entry.sha;
-    const res = await fetch(GH_REPO + DATA_DIR + t.file, {
-      method: 'PUT',
-      headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (res.status === 409 && !retrying) {
-      // Per-table conflict. v5 resolved this by discarding local state wholesale;
-      // here only the one table is affected, and an append-only table can simply
-      // be merged instead of losing anything.
-      const remote = await this.fetchTable(t);
-      if (remote && this.def(t.name).append) {
-        entry.data = mergeAppendOnly(t.name, remote, entry.data);
-      } else if (remote) {
-        entry.data = remote;
-      }
-      return this.pushTable(t, true);
-    }
-    if (!res.ok) throw new Error(`PUT ${t.file} -> ${res.status}`);
-    const json = await res.json();
-    entry.sha = json.content.sha;
-    entry.savedHash = this.hash(entry.data);
-  },
-
-  async flush() {
-    const dirty = this.dirtyNames();
-    if (!dirty.length) { setSyncState('idle'); return []; }
-    setSyncState('syncing');
-    try {
-      for (const name of dirty) await this.pushTable(this.def(name));
-      setSyncState('saved');
-      return dirty;
-    } catch (e) {
-      setSyncState('error');
-      console.error('flush failed:', e);
-      throw e;
-    }
-  }
-};
-
-// Union two versions of an append-only table on its primary key, preferring the
-// remote row when both sides have one. Used on a 409 so that two people adding
-// different items at the same time keep both.
-function mergeAppendOnly(name, remote, local) {
-  const key = name === 'items' ? 'materialNumber' : 'code';
-  const out = [...remote];
-  const seen = new Set(out.map(r => r[key]));
-  local.forEach(r => { if (!seen.has(r[key])) { out.push(r); seen.add(r[key]); } });
-  return out;
-}
-
-
-// (SEED_AGENCIES removed in v6: it existed only to backfill rosters during the
-//  v1->v2 migration, which v6 no longer runs — v6 migrates from an already
-//  migrated v4/v5 db that carries its own masterAgencies.)
-
-const SEED_DOW={'Vallejo Monday':1,'Vallejo Thursday':4,'East County Thursday':4,'East County Friday':5,'Fairfield Tuesday':2,'Fairfield Wednesday':3};
-// `db` and `distViews` are declared with the view layer below; the tables are
-// the source of truth now, not a single object literal.
+const SEED_DOW={'Monday El Sobrante':1,'Monday Vallejo':1,'Tuesday Concord':2,'Tuesday Fairfield':2,'Wednesday El Sobrante':3,'Wednesday Fairfield':3,'Thursday Concord':4,'Thursday Vallejo':4,'Thursday Antioch':4,'Thursday Vacaville':4,'Friday Antioch':5};
+const SEED_WEEK_PATTERN={'Thursday Vacaville':'2nd4th'};
+let db={version:0,distributions:[],masterAgencies:[],itemLibrary:[],reports:[],locationsList:[],orderSchedule:[],orderLog:[],copiedItems:[],lastExportAt:null};
 let cur=null;
 let newPType='cases';
+let remoteSha=null, syncTimer=null;
 
-// ---------------------------------------------------------------------------
-// v4/v5 -> v6 MIGRATION
-// ---------------------------------------------------------------------------
-// Takes a monolithic db (either half's shape) and produces the v6 tables.
-// Idempotent and re-runnable: run it on an already-migrated set and nothing
-// moves. See SCHEMA.md §7 for the reasoning behind each rule.
-
-// Sites the order half already knows about, by CERES code. This is the
-// authoritative list; anything inferred from a distribution name is matched
-// against it before a filler code is minted.
-const V6_SITE_SEED = [
-  { code: 'PEDI-B1001', name: 'Perish Dist: Oroville' },
-  { code: 'PEDI-B1002', name: 'Perish Dist: Chico' },
-  { code: 'PEDI-B2001', name: 'Perish Dist: Williams' },
-  { code: 'PEDI-B3001', name: 'Perish Dist: Red Bluff' },
-  { code: 'PEDI-B4001', name: 'Perish Dist: Willows' },
-  { code: 'PEDI-B4002', name: 'Perish Dist: Glenn County' },
-  { code: 'PEDI-C1001', name: 'Perish Dist: Richmond' },
-  { code: 'PEDI-C1004', name: 'Perish Dist: Bay Area Rescue M.' },
-  { code: 'PEDI-C1005', name: 'Perish Dist Loaves & Fishes Pittburg' },
-  { code: 'PEDI-C2002', name: 'Perish Dist: Concord' },
-  { code: 'PEDI-C3003', name: 'Perish Dist: Antioch' },
-  { code: 'PEDI-N1001', name: 'Perish Dist: Redding' },
-  { code: 'PEDI-S1001', name: 'Perish Dist: Vallejo' },
-  { code: 'PEDI-S2002', name: 'Perish Dist: Fairfield' },
-  { code: 'PEDI-S3003', name: 'Perish Dist: Vacaville' }
-];
-
-// Town word in a distribution name -> site code. This is the same knowledge
-// DIST_LOCATION_MAP encoded, but keyed on the town rather than the whole label,
-// so it survives the "Location Day" / "Day Location" rename that broke the
-// original map for eleven of fourteen distributions.
-const V6_TOWN_TO_SITE = {
-  vallejo: 'PEDI-S1001', fairfield: 'PEDI-S2002', vacaville: 'PEDI-S3003',
-  concord: 'PEDI-C2002', antioch: 'PEDI-C3003', richmond: 'PEDI-C1001',
-  oroville: 'PEDI-B1001', chico: 'PEDI-B1002', williams: 'PEDI-B2001',
-  willows: 'PEDI-B4001', redding: 'PEDI-N1001', pittsburg: 'PEDI-C1005',
-  'east county': 'PEDI-C2002'
-};
-
-const DOW_MNEMONIC = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const DOW_WORDS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-// Cadence uses the contributor's week-pattern vocabulary, consumed by
-// matchesWeekPattern() and advanceToNextOccurrence(). normalizeCadence() also
-// maps the placeholder values an earlier v6 seed may have written.
-function normalizeCadence(v) {
-  if (v === '2nd4th' || v === '2nd-4th') return '2nd4th';
-  if (v === '1st3rd' || v === '1st-3rd') return '1st3rd';
-  return 'all';
+// SYNC
+function setSyncState(state){
+  const el=document.getElementById('sidebar-sync');if(!el)return;
+  const S={idle:['','transparent'],syncing:['⟳ Syncing…','rgba(255,255,255,0.4)'],saved:['✓ Saved','#4ade80'],conflict:['⚠ Conflict','#fbbf24'],error:['✕ Error','#f87171']};
+  const[text,color]=S[state]||S.idle;
+  el.textContent=text;el.style.color=color;
+  if(state==='saved')setTimeout(()=>setSyncState('idle'),3000);
 }
-// Their SEED_WEEK_PATTERN / SEED_DOW, derived from the label instead of keyed on
-// exact names: SEED_DOW is exactly "weekday word -> index" for all 11 entries, and
-// the one SEED_WEEK_PATTERN entry was keyed 'Thursday Vacaville' while the real
-// distribution is 'Thursday VACAVILLE 2nd / 4th weeks' — an exact-name seed would
-// silently miss it. Requiring both ordinals keeps "1st Street" from matching.
-function cadenceFromLabel(label) {
-  const l = (label || '').toLowerCase();
-  if (/2nd\W+(?:and\W+|&\W*)?4th/.test(l)) return '2nd4th';
-  if (/1st\W+(?:and\W+|&\W*)?3rd/.test(l)) return '1st3rd';
-  return 'all';
-}
-function dowFromLabel(label) {
-  const l = (label || '').toLowerCase();
-  const i = DOW_WORDS.findIndex(w => new RegExp('\\b' + w + '\\b').test(l));
-  return i >= 0 ? i : null;
-}
-
-function v6AreaOf(code) {
-  const m = /-([A-Z]\d)/.exec(code || '');
-  return m ? m[1] : '';
-}
-
-// Pull a site out of a distribution label. Returns a code, or null when the
-// town is one we have no CERES code for (El Sobrante today) so the caller can
-// mint a filler and flag it.
-function v6SiteFromLabel(label) {
-  const l = (label || '').toLowerCase();
-  for (const town of Object.keys(V6_TOWN_TO_SITE)) {
-    if (l.includes(town)) return V6_TOWN_TO_SITE[town];
-  }
+// V2 SAFETY: remote sync disabled entirely. Something got pushed to data-v2.json
+// with an empty distributions list during earlier testing (before local seeding
+// was fixed), and every subsequent load was pulling that bad data back down and
+// overwriting the correctly-seeded local copy. Rather than only fix the seed and
+// leave this footgun in place, sync is fully turned off here — everything now
+// saves to this browser's localStorage only. Re-enable later (remove these two
+// early returns) once you're ready to actually use remote sync for v2, and
+// probably fix/delete data-v2.json in the repo first.
+async function ghGet(){
   return null;
 }
-
-function v6TownFromLabel(label) {
-  // Everything that isn't a weekday word or a cadence note is the place name.
-  return (label || '')
-    .replace(/\b(sun|mon|tues?|wednes|thurs?|fri|satur)(day)?\b/gi, ' ')
-    .replace(/\b\d+(st|nd|rd|th)\b/gi, ' ')
-    .replace(/\b(and|weeks?|\/)\b/gi, ' ')
-    .replace(/\s+/g, ' ').trim();
+async function ghPut(retrying){
+  return;
 }
+function save(){
+  try{localStorage.setItem('fb_db_v2',JSON.stringify(db))}catch(e){}
+  // Remote sync disabled for v2 (see ghGet/ghPut above) — saving locally only, no
+  // sync indicator needed since there's nothing actually syncing anywhere.
+}
+// SCHEMA v1 → v2 MIGRATION
+// Runs once per db object the first time it's loaded at an old version. Converts the old
+// fully-duplicated per-distribution agency lists into a single masterAgencies list (one
+// record per agency, linked to its distribution via distId), backfills a date onto every
+// distribution, and folds in the known real agency roster (SEED_AGENCIES) for the six
+// live distributions. Idempotent: safe to call on an already-migrated db (each stage no-ops
+// once its version number has been reached).
+// V2: neutralized. The original DIST_RENAME_V3 renamed e.g. "Monday Vallejo" -> "Vallejo
+// Monday", but the new real distribution data (from the uploaded schedule files) uses that
+// same "Day Location" naming as its canonical form going forward — so this rename would
+// actively corrupt the new seed data on first load. Left as a no-op object (rather than
+// deleted) so the db.version<3 migration stage below still runs harmlessly.
+const DIST_RENAME_V3={};
+function migrateDb(){
+  db.itemLibrary=db.itemLibrary||[];
+  db.reports=db.reports||[];
+  db.masterAgencies=db.masterAgencies||[];
 
-function migrateToV6(src, notice) {
-  notice = notice || { provisionalSites: [], provisionalItems: [], collapsedOrders: 0, orphanSchedules: [], crossSiteDrafts: [] };
-  notice.crossSiteDrafts = notice.crossSiteDrafts || [];
+  if(!db.version||db.version<2){
+    delete db.activeDistId;
+    const conflicts=[]; // agency numbers that appeared in more than one OLD distribution
 
-  // Take ownership of the input. Without this the tables share arrays and nested
-  // objects with the source db, so the app's first mutation reaches back into it
-  // and a second run on the "same" source produces something different. Cheap
-  // once per seed, and it removes the whole class of aliasing bug.
-  const db = JSON.parse(JSON.stringify(src));
+    // 1) Fold each distribution's embedded agencies into the master list.
+    db.distributions.forEach(d=>{
+      (d.agencies||[]).forEach(a=>{
+        const num=(a.num||'').trim();
+        const existing=num?db.masterAgencies.find(m=>(m.num||'').trim().toLowerCase()===num.toLowerCase()):null;
+        if(existing){
+          conflicts.push({num,name:a.name,keptIn:d.name,droppedFrom:existing.distId});
+          existing.distId=d.id; // last one encountered wins (most-recently-added distribution)
+          existing.id=a.id;     // adopt this occurrence's id so it still lines up with this
+                                 // distribution's checkedIn/pickOrder/orderStatus references
+          existing.name=a.name;existing.group=a.group||'';
+        }else{
+          // Preserve the original agency id (not a fresh uid()) — d.checkedIn, d.pickOrder,
+          // d.lateSlots, and d.orderStatus all reference agencies by this id, and that
+          // linkage has to survive the move into masterAgencies.
+          db.masterAgencies.push({id:a.id,num,name:a.name,group:a.group||'',distId:d.id,hidden:false});
+        }
+      });
+      delete d.agencies;
+      d.date=d.date||dateStrFromId(d.id);
+      d.notes=d.notes||'';
+    });
 
-  // Normalize reports to the v5 snapshot shape up front, not while assembling
-  // the legacy table. A v4 source stores rendered HTML, and the item harvest
-  // below reads snapshot pallets — doing this later meant a v4 seed silently
-  // found 12 fewer items than a v5 seed of the same data.
-  const v5reports = (db.reports || []).map(r => (r.snapshot ? r : migrateReportV4toV5(r)));
-
-  // ---- sites -------------------------------------------------------------
-  const sites = [];
-  const siteByCode = {};
-  const addSite = (code, name, provisional) => {
-    if (siteByCode[code]) {
-      if (name && name.length > (siteByCode[code].name || '').length) siteByCode[code].name = name;
-      return siteByCode[code];
-    }
-    const s = { code, name: name || code, area: v6AreaOf(code), active: true };
-    if (provisional) { s.provisional = true; notice.provisionalSites.push(code + ' — ' + s.name); }
-    sites.push(s); siteByCode[code] = s;
-    return s;
-  };
-  V6_SITE_SEED.forEach(s => addSite(s.code, s.name));
-  (db.locationsList || []).forEach(l => { if (l.code) addSite(l.code, l.name); });
-  // Codes embedded in the order half's "Name - CODE" location strings.
-  (db.orderLog || []).forEach(o => {
-    const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(o.location || '');
-    if (m) addSite(m[1], (o.location || '').replace(/\s*-\s*[A-Z]{4}-[A-Z]\d{3,4}\s*$/, '').trim());
-  });
-  (db.orderSchedule || []).forEach(o => { if (o.code) addSite(o.code, o.name); });
-
-  // ---- schedules ---------------------------------------------------------
-  // One per distribution. Duplicate pairs left by the v3 rename are NOT merged
-  // (SCHEMA.md §9) — they get distinct ids and the empty ones go inactive, so
-  // they stay out of the way without anything being destroyed.
-  const schedules = [];
-  const scheduleByLegacyId = {};
-  let fillerSeq = 0;
-  const takenIds = new Set();
-
-  (db.distributions || []).forEach(d => {
-    let siteCode = v6SiteFromLabel(d.name);
-    if (!siteCode) {
-      const town = v6TownFromLabel(d.name) || 'Unknown';
-      const existing = sites.find(s => s.provisional && s.name === town);
-      if (existing) siteCode = existing.code;
-      else { siteCode = 'SITE-LOCAL-' + String(++fillerSeq).padStart(2, '0'); addSite(siteCode, town, true); }
-    }
-    // A missing dayOfWeek falls back to the weekday in the label — two live
-    // distributions ('Wednesday El Sobrante', 'Thursday Vallejo') have none.
-    const dow = (d.dayOfWeek === undefined || d.dayOfWeek === null || d.dayOfWeek === '')
-      ? dowFromLabel(d.name) : Number(d.dayOfWeek);
-    let id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]);
-    let n = 1;
-    while (takenIds.has(id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
-    takenIds.add(id);
-
-    const sched = {
-      id, siteCode, dayOfWeek: dow,
-      cadence: d.weekPattern ? normalizeCadence(d.weekPattern) : cadenceFromLabel(d.name),
-      label: d.name || id, active: true, legacyId: d.id
-    };
-    schedules.push(sched);
-    scheduleByLegacyId[d.id] = sched;
-  });
-
-  // Reports can reference a distribution that was deleted — 9 of 15 do in the
-  // live export. Give each orphan a schedule of its own rather than attaching it
-  // to a look-alike, so nothing is silently merged.
-  v5reports.forEach(r => {
-    if (!r.distId || scheduleByLegacyId[r.distId]) return;
-    const label = r.distName || 'Unknown';
-    let siteCode = v6SiteFromLabel(label);
-    if (!siteCode) {
-      const town = v6TownFromLabel(label) || 'Unknown';
-      const existing = sites.find(s => s.provisional && s.name === town);
-      siteCode = existing ? existing.code : (addSite('SITE-LOCAL-' + String(++fillerSeq).padStart(2, '0'), town, true).code);
-    }
-    let id = siteCode + '-ARCHIVED';
-    let n = 1;
-    while (takenIds.has(id)) id = siteCode + '-ARCHIVED-' + (++n);
-    takenIds.add(id);
-    const sched = { id, siteCode, dayOfWeek: dowFromLabel(label), cadence: cadenceFromLabel(label), label, active: false, legacyId: r.distId, archivedOnly: true };
-    schedules.push(sched);
-    scheduleByLegacyId[r.distId] = sched;
-    notice.orphanSchedules.push(label + ' (' + id + ')');
-  });
-
-  // ---- agencies ----------------------------------------------------------
-  // Keyed by CERES code. `scheduleIds` is the target shape even though today
-  // every agency belongs to exactly one schedule; the app reads it through a
-  // single-valued `distId` alias (see bindDbView) until phase 2 adds the UI for
-  // multi-day assignment.
-  let agencyFiller = 0;
-  const agencies = (db.masterAgencies || []).map(a => {
-    const code = (a.num || '').trim() || ('AGCY-LOCAL-' + String(++agencyFiller).padStart(2, '0'));
-    const sched = scheduleByLegacyId[a.distId];
-    return {
-      code, name: a.name, group: a.group || '',
-      scheduleIds: sched ? [sched.id] : [],
-      active: !a.hidden,
-      legacyId: a.id
-    };
-  });
-
-  // ---- items -------------------------------------------------------------
-  // Union of every place an item has ever been named. On a description clash the
-  // longest wins and the rest are kept as aliases (SCHEMA.md §9) — nothing is
-  // lost, and a canonical list can replace the heuristic later.
-  const itemByCode = {};
-  const addItem = (code, desc) => {
-    code = (code || '').trim();
-    if (!code) return;
-    desc = (desc || '').trim();
-    if (!itemByCode[code]) {
-      itemByCode[code] = { materialNumber: code, description: desc || code, altDescriptions: [], active: true };
-      // A real CERES material number looks like ABCD-D001. Anything else is a
-      // free-text label someone typed into a pallet; keep it (reports reference
-      // it) but mark it so it can be cleaned up.
-      if (!/^[A-Za-z]{4}-[A-Za-z]\d{3,4}[A-Za-z]?$/.test(code)) {
-        itemByCode[code].provisional = true;
-        notice.provisionalItems.push(code);
+    // 2) Merge in the real roster from the spreadsheet for the six live distributions —
+    //    matching by distribution name (exact, case-insensitive), creating the distribution
+    //    if it doesn't exist yet (this is expected for the two brand-new East County days).
+    const unmatchedDistNames=[];
+    const seedDistNames=[...new Set(SEED_AGENCIES.map(s=>s.distName))];
+    seedDistNames.forEach(name=>{
+      let dist=db.distributions.find(x=>(x.name||'').trim().toLowerCase()===name.toLowerCase());
+      if(!dist){
+        dist={id:uid(),name,date:todayStr(),notes:'',pallets:[],checkedIn:[],pickOrder:[],lateSlots:[],palletsDone:{},orderStatus:{},orderForm:{orderNumber:'',location:'',items:[],lastSentAt:null}};
+        db.distributions.push(dist);
+        unmatchedDistNames.push(name);
       }
+      if(dist.dayOfWeek===undefined&&SEED_DOW[name]!==undefined)dist.dayOfWeek=SEED_DOW[name];
+      if(dist.weekPattern===undefined&&SEED_WEEK_PATTERN[name]!==undefined)dist.weekPattern=SEED_WEEK_PATTERN[name];
+      SEED_AGENCIES.filter(s=>s.distName===name).forEach(s=>{
+        // Scoped to THIS distribution only — a handful of real agencies legitimately
+        // attend two different distributions (e.g. both Wednesday Fairfield and
+        // Thursday Vacaville), and each needs its own check-in record there.
+        const already=db.masterAgencies.find(m=>m.distId===dist.id&&(m.num||'').trim().toLowerCase()===s.num.toLowerCase());
+        if(!already){
+          db.masterAgencies.push({id:uid(),num:s.num,name:s.name,group:'',distId:dist.id,hidden:false});
+        }
+      });
+    });
+
+    // 3) Leave a one-time, visible notice about anything that needed a human look —
+    //    shown once after load, then dismissed and cleared.
+    if(conflicts.length||unmatchedDistNames.length){
+      db.migrationNotice={conflicts,createdDists:unmatchedDistNames};
     }
-    const it = itemByCode[code];
-    if (!desc || desc === it.description) return;
-    if (desc.length > it.description.length) {
-      if (!it.altDescriptions.includes(it.description)) it.altDescriptions.push(it.description);
-      it.description = desc;
-    } else if (!it.altDescriptions.includes(desc)) {
-      it.altDescriptions.push(desc);
-    }
-  };
-  (db.itemLibrary || []).forEach(i => addItem(i.materialNumber, i.name));
-  (db.orderLog || []).forEach(o => (o.items || []).forEach(it => addItem(it.itemNum, it.description)));
-  (db.copiedItems || []).forEach(it => addItem(it.itemNum, it.description));
-  (db.distributions || []).forEach(d => {
-    (d.pallets || []).forEach(p => addItem(p.materialNumber, p.desc));
-    ((d.orderForm || {}).items || []).forEach(it => addItem(it.itemNum, it.description));
-  });
-  v5reports.forEach(r => ((r.snapshot || {}).pallets || []).forEach(p => addItem(p.mat, p.desc)));
-  const items = Object.values(itemByCode).sort((a, b) => a.materialNumber.localeCompare(b.materialNumber));
 
-  // ---- events (Distribution) ---------------------------------------------
-  // The live working state of each schedule. The schedule now owns identity and
-  // configuration; the event owns what changes week to week. orderForm moves out
-  // to the orders table — the draft belongs to the Order half.
-  const eventsOpen = {};
-  (db.distributions || []).forEach(d => {
-    const sched = scheduleByLegacyId[d.id];
-    if (!sched) return;
-    eventsOpen[sched.id] = {
-      date: d.date || null, notes: d.notes || '',
-      checkedIn: d.checkedIn || [], pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [],
-      pallets: d.pallets || [], palletsDone: d.palletsDone || {}, orderStatus: d.orderStatus || {},
-      shipmentId: null, orderId: null
-    };
-  });
-
-  // ---- orders (Order) ------------------------------------------------------
-  // One lifecycle replacing three structures: orderSchedule was the upstream AOR
-  // calendar (planned), distributions[].orderForm the live draft, orderLog the
-  // saved history. Lines keep the warehouse vocabulary (itemNum, needToPull,
-  // pullUnit, qtyPulled, returned, used) — it never crosses into Distribution,
-  // which reads the shipment contract instead (SCHEMA.md §5).
-  const orders = [];
-  let orderSeq = 0;
-  const orderId = (siteCode, date) => `ord-${date || 'nodate'}-${siteCode || 'nosite'}-${String(++orderSeq).padStart(2, '0')}`;
-  const siteFromLocationString = str => {
-    const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(str || '');
-    return m ? m[1] : '';
-  };
-
-  (db.orderSchedule || []).forEach(o => {
-    orders.push({ id: orderId(o.code, o.date), orderNumber: o.orderNumber || '', siteCode: o.code || '',
-                  date: o.date || null, status: 'planned', lines: [], savedAt: null });
-  });
-
-  const seenOrder = new Set();
-  (db.orderLog || []).forEach(o => {
-    const key = [o.location || '', o.date || '', o.orderNumber || '', JSON.stringify(o.items || [])].join('|');
-    if (seenOrder.has(key)) { notice.collapsedOrders++; return; }
-    seenOrder.add(key);
-    const siteCode = siteFromLocationString(o.location);
-    orders.push({ id: orderId(siteCode, o.date), orderNumber: o.orderNumber || '', siteCode,
-                  date: o.date || null, status: 'saved', lines: o.items || [], savedAt: o.savedAt || null });
-  });
-
-  (db.distributions || []).forEach(d => {
-    const sched = scheduleByLegacyId[d.id];
-    const of = d.orderForm;
-    if (!sched || !of) return;
-    const hasContent = of.orderNumber || of.location || (of.items || []).length;
-    if (!hasContent) return;
-    // Keep the location that was actually entered rather than "correcting" it to
-    // the schedule's site — but say so when they disagree. In v4/v5 the order form
-    // hung off the distribution tab, so it was easy to leave a draft pointing at a
-    // different site than the distribution it was attached to, and nothing showed
-    // it. Under v6 an order belongs to a (site, date), so the mismatch is visible.
-    const siteCode = siteFromLocationString(of.location) || sched.siteCode;
-    if (siteCode && siteCode !== sched.siteCode) {
-      notice.crossSiteDrafts.push(`${sched.label} (${sched.siteCode}) has a draft order for ${siteCode}`);
-    }
-    const o = { id: orderId(siteCode, d.date), orderNumber: of.orderNumber || '', siteCode,
-                date: d.date || null, status: 'draft', scheduleId: sched.id,
-                lines: of.items || [], savedAt: null, lastSentAt: of.lastSentAt || null };
-    orders.push(o);
-    eventsOpen[sched.id].orderId = o.id;
-  });
-
-  // ---- events archive (Distribution) ---------------------------------------
-  // A closed event IS what v5 called a report: same frozen snapshot, now carrying
-  // its own identity and foreign keys. Partitioned by year.
-  const archives = {};
-  v5reports.forEach(r => {
-    const sched = scheduleByLegacyId[r.distId];
-    const year = Number(String(r.date || r.generatedAt || '').slice(0, 4)) || new Date().getFullYear();
-    const ev = { ...r, status: 'closed', closedAt: r.generatedAt || null, shipmentId: null };
-    if (sched) { ev.scheduleId = sched.id; ev.siteCode = sched.siteCode; }
-    (archives['events-' + year] = archives['events-' + year] || []).push(ev);
-  });
-
-  const out = {
-    meta: {
-      version: SCHEMA_VERSION,
-      migratedFrom: db.version || null,
-      migratedAt: new Date().toISOString(),
-      migrationNotice: notice,
-      lastExportAt: db.lastExportAt || null,
-      archiveYears: Object.keys(archives).map(k => +k.slice(7)).sort()
-    },
-    sites, agencies, items, schedules,
-    orders,
-    // No shipment exists historically — the contract starts with the first
-    // dispatch under v6. Back-filling one would be inventing a manifest.
-    shipments: [],
-    eventsOpen
-  };
-  Object.assign(out, archives);
-  return out;
-}
-
-// A phase-1 v6 set carries one legacy.json holding events, reports, orderLog,
-// orderSchedule and copiedItems together. Split it the same way, so a stream
-// already running phase 1 upgrades rather than needing a re-seed.
-function splitPhase1Legacy(tables) {
-  const legacy = tables.legacy;
-  if (!legacy) return tables;
-  const shim = {
-    version: 5,
-    distributions: Object.entries(legacy.events || {}).map(([id, e]) => ({ ...e, id })),
-    masterAgencies: [], itemLibrary: [], locationsList: [],
-    reports: legacy.reports || [], orderLog: legacy.orderLog || [],
-    orderSchedule: legacy.orderSchedule || [], copiedItems: legacy.copiedItems || []
-  };
-  // Schedules already exist; map each event id straight through.
-  const sub = migrateToV6(shim);
-  const out = { ...tables };
-  delete out.legacy;
-  out.orders = sub.orders;
-  out.shipments = [];
-  out.eventsOpen = legacy.events || {};
-  Object.keys(sub).filter(k => /^events-\d{4}$/.test(k)).forEach(k => { out[k] = sub[k]; });
-  out.meta = { ...tables.meta, archiveYears: sub.meta.archiveYears };
-  return out;
-}
-
-
-// ---------------------------------------------------------------------------
-// db VIEW — binds the app's existing shape to the split tables
-// ---------------------------------------------------------------------------
-// Phase 1 changes where data LIVES, not how the app reads it. The tables are the
-// source of truth; `db` is a façade whose properties alias into them, and each
-// row carries its v4/v5 field names as NON-ENUMERABLE accessors that read and
-// write the v6 fields underneath.
-//
-// Non-enumerable matters: JSON.stringify skips those accessors, so the files on
-// disk contain only the v6 shape while `a.num`, `a.distId`, `d.name` and friends
-// keep working for ~65 existing call sites. Getting the view right is what makes
-// all of them right at once, which is why the harness tests the view directly.
-//
-// Phase 2 moves the app's in-memory model onto the tables and this layer goes away.
-
-function alias(obj, from, get, set) {
-  Object.defineProperty(obj, from, { get, set, enumerable: false, configurable: true });
-}
-
-function bindAgency(a) {
-  if (Object.getOwnPropertyDescriptor(a, 'num')) return a;
-  alias(a, 'num', () => a.code, v => { a.code = v; });
-  alias(a, 'id', () => a.legacyId, v => { a.legacyId = v; });
-  alias(a, 'hidden', () => !a.active, v => { a.active = !v; });
-  alias(a, 'distId', () => (a.scheduleIds || [])[0] || '', v => { a.scheduleIds = v ? [v] : []; });
-  return a;
-}
-
-function bindItem(i) {
-  if (Object.getOwnPropertyDescriptor(i, 'name')) return i;
-  alias(i, 'name', () => i.description, v => { i.description = v; });
-  return i;
-}
-
-// A distribution view is the EVENT object with the schedule's fields layered on
-// as write-through accessors. Mutating d.checkedIn lands in legacy.json; setting
-// d.name lands in schedules.json. Each write reaches exactly one table, which is
-// what keeps the one-action-one-file rule (SCHEMA.md §6) true by construction.
-function bindDist(sched, event) {
-  const d = event;
-  if (Object.getOwnPropertyDescriptor(d, 'id')) return d;
-  alias(d, 'id', () => sched.id);
-  alias(d, 'name', () => sched.label, v => { sched.label = v; });
-  alias(d, 'dayOfWeek', () => sched.dayOfWeek, v => { sched.dayOfWeek = (v === '' || v === null || v === undefined) ? null : Number(v); });
-  alias(d, 'siteCode', () => sched.siteCode, v => { sched.siteCode = v; });
-  alias(d, 'active', () => sched.active, v => { sched.active = v; });
-  alias(d, 'weekPattern', () => normalizeCadence(sched.cadence), v => { sched.cadence = normalizeCadence(v); });
-  // The order draft lives in the orders table, not on the event. Resolved lazily
-  // so an event that never had an order does not mint one just by being read.
-  alias(d, 'orderForm', () => orderFormFor(d), v => {
-    const o = orderFormFor(d);
-    if (!v) return;
-    if (v.orderNumber !== undefined) o.orderNumber = v.orderNumber;
-    if (v.location !== undefined) o.location = v.location;
-    if (v.items !== undefined) o.lines = v.items;
-    if (v.lastSentAt !== undefined) o.lastSentAt = v.lastSentAt;
-  });
-  Object.defineProperty(d, '_sched', { value: sched, enumerable: false, configurable: true });
-  return d;
-}
-
-let db = {};            // the façade; rebuilt by bindDbView()
-let distViews = [];
-
-function bindDbView() {
-  const meta = Store.get('meta');
-  const eventsOpen = Store.get('eventsOpen');
-  Store.get('agencies').forEach(bindAgency);
-  Store.get('items').forEach(bindItem);
-
-  // One view per schedule, in schedule order — except archive-only ones. Those
-  // exist purely so old reports from a deleted distribution keep a valid foreign
-  // key; surfacing them here would resurrect a distribution the user deleted.
-  distViews = Store.get('schedules').filter(s => !s.archivedOnly).map(s => {
-    if (!eventsOpen[s.id]) {
-      eventsOpen[s.id] = { date: null, notes: '', checkedIn: [], pickOrder: [], lateSlots: [],
-                           pallets: [], palletsDone: {}, orderStatus: {}, shipmentId: null, orderId: null };
-    }
-    return bindDist(s, eventsOpen[s.id]);
-  });
-
-  db = {};
-  const prop = (name, get, set) => Object.defineProperty(db, name, { get, set, enumerable: true, configurable: true });
-
-  prop('version', () => meta.version, v => { meta.version = v; });
-  prop('migrationNotice', () => meta.migrationNotice, v => { meta.migrationNotice = v; });
-  prop('lastExportAt', () => meta.lastExportAt, v => { meta.lastExportAt = v; });
-
-  prop('distributions', () => distViews, v => { syncDistributions(v); });
-  prop('masterAgencies', () => Store.get('agencies'), v => { replaceTable('agencies', v.map(normalizeAgency)); });
-  prop('itemLibrary', () => Store.get('items'), v => { replaceTable('items', v.map(normalizeItem)); });
-  prop('locationsList', () => Store.get('sites'), v => { syncSites(v); });
-
-  // Closed events across every archive year are what the reports list reads.
-  prop('reports', () => allClosedEvents(), v => { replaceClosedEvents(v); });
-
-  // The order half still reads db.orderLog / db.orderSchedule; both are now
-  // projections of the one orders table, selected by status.
-  prop('orderLog', () => ordersByStatus('saved').map(toLogEntry),
-       v => { syncOrders('saved', v); });
-  prop('orderSchedule', () => ordersByStatus('planned').map(toScheduleEntry),
-       v => { syncOrders('planned', v); });
-
-  // The paste clipboard is per-viewer UI state, not domain data. It stops being
-  // synced entirely (SCHEMA.md §3) and lives only in this browser.
-  prop('copiedItems', () => readClipboard(), v => { writeClipboard(v); });
-
-  return db;
-}
-
-// Replace a table's contents in place so the array identity the view handed out
-// stays valid.
-function replaceTable(name, rows) {
-  const arr = Store.get(name);
-  arr.length = 0;
-  rows.forEach(r => arr.push(r));
-}
-
-function normalizeAgency(a) {
-  if (a.code !== undefined && a.scheduleIds !== undefined) return bindAgency(a);
-  const out = {
-    code: (a.num || a.code || '').trim(),
-    name: a.name || '',
-    group: a.group || '',
-    scheduleIds: a.distId ? [a.distId] : (a.scheduleIds || []),
-    active: a.hidden !== undefined ? !a.hidden : (a.active !== false),
-    legacyId: a.id || a.legacyId || uid()
-  };
-  return bindAgency(out);
-}
-
-function normalizeItem(i) {
-  if (i.description !== undefined) return bindItem(i);
-  return bindItem({ materialNumber: i.materialNumber || '', description: i.name || '',
-                    altDescriptions: i.altDescriptions || [], active: i.active !== false });
-}
-
-// db.distributions = [...] — used by removeManagedDist and by any push of a
-// freshly-built v5-shaped distribution. Sync schedules and events to match.
-function syncDistributions(list) {
-  const schedules = Store.get('schedules');
-  const eventsOpen = Store.get('eventsOpen');
-  const keep = new Set();
-  const next = [];
-  list.forEach(d => {
-    let sched = d._sched || schedules.find(s => s.id === d.id);
-    if (!sched) {
-      const siteCode = v6SiteFromLabel(d.name) || provisionalSiteFor(d.name);
-      const dow = (d.dayOfWeek === undefined || d.dayOfWeek === null || d.dayOfWeek === '') ? null : Number(d.dayOfWeek);
-      let id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]), n = 1;
-      while (schedules.some(s => s.id === id)) id = siteCode + '-' + (dow === null ? 'X' : DOW_MNEMONIC[dow]) + '-' + (++n);
-      sched = { id, siteCode, dayOfWeek: dow, cadence: normalizeCadence(d.weekPattern), label: d.name || id, active: true, legacyId: d.id || uid() };
-      schedules.push(sched);
-      eventsOpen[id] = { date: d.date || null, notes: d.notes || '', checkedIn: d.checkedIn || [],
-                         pickOrder: d.pickOrder || [], lateSlots: d.lateSlots || [], pallets: d.pallets || [],
-                         palletsDone: d.palletsDone || {}, orderStatus: d.orderStatus || {},
-                         shipmentId: null, orderId: null };
-      next.push(bindDist(sched, eventsOpen[id]));
-    } else {
-      next.push(d._sched ? d : bindDist(sched, eventsOpen[sched.id]));
-    }
-    keep.add(sched.id);
-  });
-  // active/inactive exists for one reason: a former distribution stays in
-  // schedules.json so its closed weeks still have something to join to. So when a
-  // distribution is dropped from the list, retire it if any closed week refers to
-  // it, and only remove it outright if nothing does. Records already retired are
-  // never in the list and are left alone.
-  const referenced = new Set(allClosedEvents().map(e => e.scheduleId));
-  for (let i = schedules.length - 1; i >= 0; i--) {
-    const sc = schedules[i];
-    if (sc.archivedOnly || keep.has(sc.id)) continue;
-    delete eventsOpen[sc.id];                    // the unclosed week goes, as before
-    if (referenced.has(sc.id)) { sc.active = false; sc.archivedOnly = true; }
-    else schedules.splice(i, 1);
+    db.version=2;
   }
-  distViews = next;
-}
 
-function provisionalSiteFor(label) {
-  const sites = Store.get('sites');
-  const town = v6TownFromLabel(label) || 'Unknown';
-  const hit = sites.find(s => s.provisional && s.name === town);
-  if (hit) return hit.code;
-  let n = 0;
-  sites.forEach(s => { const m = /^SITE-LOCAL-(\d+)$/.exec(s.code || ''); if (m) n = Math.max(n, +m[1]); });
-  const code = 'SITE-LOCAL-' + String(n + 1).padStart(2, '0');
-  sites.push({ code, name: town, area: '', active: true, provisional: true });
-  return code;
-}
-
-// order-form.js replaces db.locationsList wholesale with plain {name, code}
-// rows; merge them into sites rather than flattening the table.
-function syncSites(list) {
-  const sites = Store.get('sites');
-  (list || []).forEach(l => {
-    if (!l.code) return;
-    const hit = sites.find(s => s.code === l.code);
-    if (hit) { if (l.name) hit.name = l.name; }
-    else sites.push({ code: l.code, name: l.name || l.code, area: v6AreaOf(l.code), active: true });
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Projections over the orders table
-// ---------------------------------------------------------------------------
-// The order half reads db.orderLog and db.orderSchedule; both are now views of
-// one orders table selected by status, so the three structures that used to hold
-// the same thing at different points in its life are one record that moves
-// through planned -> draft -> saved -> dispatched.
-function ordersByStatus(status) { return Store.get('orders').filter(o => o.status === status); }
-
-function siteLabel(siteCode) {
-  const s = Store.get('sites').find(x => x.code === siteCode);
-  return s ? `${s.name} - ${s.code}` : (siteCode || '');
-}
-
-// The order form works on COPIES: it loads with .map(o => ({...o})), mutates its
-// copies, and writes the whole array back. A spread copies only enumerable own
-// properties, so handing it order rows dressed with non-enumerable aliases (the
-// phase-2 approach) failed three ways: code/name/location vanished on load, and
-// the copy's real `items` property was written straight back to orders.json next
-// to `lines`. So these return plain objects in exactly the order form's shape, and
-// syncOrders() translates them back into clean order rows. The rows themselves
-// never carry order-form field names.
-function toLogEntry(o) {
-  return { id: o.id, location: siteLabel(o.siteCode), date: o.date, orderNumber: o.orderNumber || '',
-           items: (o.lines || []).map(it => ({ ...it })), savedAt: o.savedAt || null };
-}
-function toScheduleEntry(o) {
-  const site = Store.get('sites').find(x => x.code === o.siteCode);
-  return { id: o.id, orderNumber: o.orderNumber || '', code: o.siteCode || '',
-           name: site ? site.name : (o.siteCode || ''), date: o.date };
-}
-function siteCodeFromLabel(label) {
-  const m = /-\s*([A-Z]{4}-[A-Z]\d{3,4})\s*$/.exec(label || '');
-  if (m) return m[1];
-  const hit = Store.get('sites').find(s => `${s.name} - ${s.code}` === label || s.name === label);
-  return hit ? hit.code : '';
-}
-
-let orderSeqCounter = 0;
-function newOrderId(siteCode, date) {
-  return `ord-${date || 'nodate'}-${siteCode || 'nosite'}-${Date.now().toString(36)}${(++orderSeqCounter).toString(36)}`;
-}
-
-// db.orderLog = [...] / db.orderSchedule = [...] — wholesale replacement from the
-// order half. Rewrite only the rows of that status, leaving drafts and dispatched
-// orders alone. Rows are rebuilt field by field from whatever shape arrives
-// (translated copies, or DEFAULT_ORDER_SCHEDULE literals with no id), so no
-// order-form field name can reach disk.
-function syncOrders(status, list) {
-  const orders = Store.get('orders');
-  const prior = {};
-  orders.forEach(o => { if (o.status === status) prior[o.id] = o; });
-  for (let i = orders.length - 1; i >= 0; i--) if (orders[i].status === status) orders.splice(i, 1);
-  (list || []).forEach(row => {
-    const siteCode = row.siteCode || row.code || siteCodeFromLabel(row.location);
-    // A schedule entry can name a site the table has not seen (a one-off); register
-    // it rather than leave a dangling siteCode — same as findOrCreateLocationByCode.
-    if (siteCode && row.name && !Store.get('sites').some(x => x.code === siteCode)) {
-      Store.get('sites').push({ code: siteCode, name: row.name, area: v6AreaOf(siteCode), active: true });
-    }
-    const was = row.id ? prior[row.id] : null;
-    const out = {
-      id: row.id || newOrderId(siteCode, row.date),
-      orderNumber: row.orderNumber || '',
-      siteCode,
-      date: row.date || null,
-      status,
-      lines: (row.lines || row.items || []).map(it => ({ ...it })),
-      savedAt: row.savedAt || (was ? was.savedAt : null)
-    };
-    if (was && was.scheduleId) out.scheduleId = was.scheduleId;
-    if (was && was.lastSentAt) out.lastSentAt = was.lastSentAt;
-    orders.push(out);
-  });
-}
-
-// The draft order for one distribution. Replaces distributions[].orderForm: the
-// draft is an order, and orders belong to the order half's table.
-function orderFormFor(d) {
-  const orders = Store.get('orders');
-  let o = d.orderId ? orders.find(x => x.id === d.orderId) : null;
-  if (!o) {
-    o = { id: newOrderId(d.siteCode, d.date), orderNumber: '', siteCode: d.siteCode || '',
-          date: d.date || null, status: 'draft', scheduleId: d.id, lines: [], savedAt: null, lastSentAt: null };
-    orders.push(o);
-    d.orderId = o.id;
+  if(db.version<3){
+    // Rename existing live distributions from "Day Location" to "Location Day", in place —
+    // same distribution id, same agencies/pallets/history, just a relabel.
+    db.distributions.forEach(d=>{
+      const newName=DIST_RENAME_V3[d.name];
+      if(newName)d.name=newName;
+    });
+    db.version=3;
   }
-  // The order form edits the distribution's date directly, so the draft's own date
-  // is just a copy of it — keep the copy in step. Dispatch dates the shipment from it.
-  if (d.date && o.date !== d.date) o.date = d.date;
-  if (!Object.getOwnPropertyDescriptor(o, 'location')) {
-    // The location the order half edits is the site, resolved from the schedule
-    // rather than from a hardcoded name map.
-    alias(o, 'location', () => siteLabel(o.siteCode), v => { o.siteCode = siteCodeFromLabel(v) || o.siteCode; });
-    alias(o, 'items', () => o.lines, v => { o.lines = v; });
+
+  if(db.version<4){
+    db.locationsList=db.locationsList||[];
+    db.orderSchedule=db.orderSchedule||[];
+    db.orderLog=db.orderLog||[];
+    db.copiedItems=db.copiedItems||[];
+    db.lastExportAt=db.lastExportAt||null;
+    db.distributions.forEach(d=>{
+      if(!d.orderForm)d.orderForm={orderNumber:'',location:'',items:[],lastSentAt:null};
+      else{
+        d.orderForm.items=d.orderForm.items||[];
+        if(d.orderForm.lastSentAt===undefined)d.orderForm.lastSentAt=null;
+      }
+    });
+    // V2 SAFETY: legacy-key import disabled. These are old shared-origin
+    // localStorage keys from a pre-"fb_db" version of the app; reading them
+    // here would also delete them, which could affect production if they
+    // still exist. Not needed for this exploratory copy either way.
+    db.version=4;
   }
-  return o;
 }
 
-// ---------------------------------------------------------------------------
-// Closed events (the archive)
-// ---------------------------------------------------------------------------
-function archiveFor(date) {
-  const year = Number(String(date || '').slice(0, 4)) || new Date().getFullYear();
-  archiveTable(year);
-  return Store.get(archiveName(year));
-}
-// db.reports = [...] — only deleteReport uses this, to drop one.
-function replaceClosedEvents(list) {
-  const keep = new Set((list || []).map(r => r.id));
-  archiveYears().forEach(y => {
-    const arr = Store.get(archiveName(y));
-    for (let i = arr.length - 1; i >= 0; i--) if (!keep.has(arr[i].id)) arr.splice(i, 1);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Paste clipboard — per-viewer, never synced
-// ---------------------------------------------------------------------------
-function readClipboard() {
-  try { return JSON.parse(localStorage.getItem(LS_PREFIX + 'clipboard') || '[]'); } catch (e) { return []; }
-}
-function writeClipboard(v) {
-  try { localStorage.setItem(LS_PREFIX + 'clipboard', JSON.stringify(v || [])); } catch (e) {}
-}
-
-// ---------------------------------------------------------------------------
-// THE ORDER -> DISTRIBUTION CONTRACT
-// ---------------------------------------------------------------------------
-// Food is pulled onto a truck at the warehouse, then allocated at the site. The
-// shipment is the manifest of what physically went on the truck: Order writes it,
-// Distribution reads it, and neither reaches into the other's tables.
-//
-// It is deliberately narrow. needToPull / pullUnit / qtyPulled / returned / used
-// are warehouse vocabulary and stay on the Order side of the wall;
-// sourceOrderId is a back-reference Distribution stores and never interprets.
-//
-// This replaces mapOrderItemsToPallets(), which copied order rows straight into
-// d.pallets and dropped the pull actuals on the way.
-// An order's manifest lines. Pure: shared by dispatchShipment(), which records a
-// shipment, and by the send dialog's preview, which must not — so the preview can
-// never disagree with what the send then does.
-function shipmentLinesFrom(order) {
-  return (order.lines || []).map(it => {
-    const qtyRaw = parseFloat(it.needToPull);
-    const unit = (it.pullUnit === 'BIN' || it.pullUnit === 'LBS') ? 'units' : 'cases';
-    const qty = isNaN(qtyRaw) ? 0 : (unit === 'cases' ? Math.floor(qtyRaw) : Math.round(qtyRaw * 100) / 100);
-    return {
-      materialNumber: (it.itemNum || '').trim(),
-      description: (it.description || it.itemNum || '').trim(),
-      qty: qty || 0,
-      unit,
-      palletNum: it.palletNum || ''
-    };
-  }).filter(l => l.materialNumber || l.description);
-}
-
-function dispatchShipment(order, scheduleId) {
-  const lines = shipmentLinesFrom(order);
-  const shipment = {
-    id: `shp-${order.date || todayStr()}-${order.siteCode || 'nosite'}-${Date.now().toString(36)}`,
-    siteCode: order.siteCode || '',
-    date: order.date || todayStr(),
-    scheduleId: scheduleId || null,
-    sourceOrderId: order.id,
-    dispatchedAt: new Date().toISOString(),
-    lines
-  };
-  Store.get('shipments').push(shipment);
-  order.status = 'dispatched';
-  order.lastSentAt = shipment.dispatchedAt;
-  return shipment;
-}
-
-// Distribution's side of the contract: turn an arriving manifest into pallets.
-// It reads only the shipment, never the order.
-// qty starts at 0, not the manifest amount: the coordinator on site is the first
-// person positioned to know the real case count — the ERP's per-pallet counts
-// can't be trusted and substitutions happen at fulfillment. plannedQty carries the
-// ordered amount forward as the head start (the edit dialog shows it as the
-// placeholder). Allocation divides qty, so nothing allocates until counted.
-function palletsFromShipment(shipment) {
-  return (shipment.lines || []).map(l => ({
-    id: uid(),
-    desc: l.description,
-    materialNumber: l.materialNumber,
-    type: l.unit === 'units' ? 'bin' : 'cases',
-    qty: 0,
-    plannedQty: l.qty,
-    shipmentId: shipment.id,
-    sourcePalletNum: l.palletNum || ''
-  }));
-}
-
-// Same product on the same pallet? The contributor's key — material number when
-// either side has one (case-insensitive), otherwise the description — plus the
-// unit: a count only means something in its unit, so bread counted as 12 cases is
-// not carried onto a bread bin.
-function samePallet(a, b) {
-  if ((a.type || 'cases') !== (b.type || 'cases')) return false;
-  const am = (a.materialNumber || '').trim().toLowerCase();
-  const bm = (b.materialNumber || '').trim().toLowerCase();
-  if (am || bm) return am === bm;
-  return (a.desc || '').trim() === (b.desc || '').trim();
-}
-
-// Re-sending an order to pallets without losing the coordinator's work. Pure:
-// returns the new list and what happened, touches nothing. Rules decided in review
-// (SCHEMA.md §5, decisions in §11):
-//  - an order line matching an existing pallet keeps that pallet's id, its counted
-//    qty and its done mark (done marks are keyed by id); only the order-side fields
-//    are refreshed — description, planned amount, shipment link
-//  - an order line with no match becomes a new pallet, uncounted
-//  - a pallet with no matching order line is left exactly as it is, including
-//    pallets added by hand on site
-// Existing pallets keep their place on screen; new ones go at the end.
-//
-// The contributor's autoSyncOrderFormToPallets matched the same way but took every
-// field but the id from the fresh pallet — so, with qty now starting at 0, each
-// re-save of the order wiped the counts — and dropped unmatched pallets.
-function reconcilePallets(existing, fresh) {
-  const out = (existing || []).map(p => ({ ...p }));
-  const used = new Set();                       // indexes into out, not ids
-  const added = [];
-  fresh.forEach(f => {
-    const i = out.findIndex((p, k) => !used.has(k) && samePallet(p, f));
-    if (i < 0) { added.push(f); return; }
-    used.add(i);
-    out[i] = { ...out[i], desc: f.desc, materialNumber: f.materialNumber, plannedQty: f.plannedQty,
-               shipmentId: f.shipmentId, sourcePalletNum: f.sourcePalletNum };
-  });
-  return { pallets: out.concat(added),
-           stats: { kept: used.size, added: added.length, untouched: out.length - used.size } };
-}
-
-function shipmentsFor(siteCode, date) {
-  return Store.get('shipments').filter(s => s.siteCode === siteCode && (!date || s.date === date));
-}
-
-// Rows the app pushed in v4/v5 shape get folded into v6 shape before any hash or
-// serialization sees them. Central, so no push site has to know about the split.
-function normalizeTables() {
-  Store.get('schedules').forEach(sc => {
-    const c = normalizeCadence(sc.cadence); if (sc.cadence !== c) sc.cadence = c;
-    // Live means active; only a former distribution kept for archive joins is not.
-    const a = !sc.archivedOnly; if (sc.active !== a) sc.active = a;
-  });
-  const agencies = Store.get('agencies');
-  for (let i = 0; i < agencies.length; i++) {
-    if (agencies[i].code === undefined || agencies[i].scheduleIds === undefined) agencies[i] = normalizeAgency(agencies[i]);
-    else bindAgency(agencies[i]);
-  }
-  const items = Store.get('items');
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].description === undefined) items[i] = normalizeItem(items[i]);
-    else bindItem(items[i]);
-  }
-  // A distribution pushed straight onto the array has no schedule yet.
-  if (distViews.some(d => !d._sched)) syncDistributions(distViews);
-}
-
-
-function migrateReportV4toV5(r){
-  if(r.snapshot)return r;
-  if(!r.html)return {...r,snapshot:{agencies:[],pallets:[],lottery:[],notes:''}};
+// V2 ONLY: one-click way to wipe this browser's saved test data and start over,
+// with no console commands needed. Does NOT touch the production app's data —
+// 'fb_db_v2' is a completely separate key from production's 'fb_db'.
+// Deliberately avoids confirm() (some locked-down browser setups silently block
+// or auto-dismiss it, which would make this button appear to do nothing) and
+// uses a cache-busting URL instead of location.reload(), since a plain reload
+// of a local file can, in some browsers, come back from cache instead of truly
+// re-running everything fresh.
+// Manual backup/restore, since remote sync is currently disabled — this is the
+// only way data in this browser survives a cleared cache, a new computer, etc.
+// Exports/imports the ENTIRE db object as one JSON file (all distributions,
+// agencies, order log, item library, everything).
+function exportV2Data(){
   try{
-    const doc=new DOMParser().parseFromString(r.html,'text/html');
-    const tables=doc.querySelectorAll('table');
-    const cells=tr=>[...tr.querySelectorAll('td')];
-
-    const agencies=[...(tables[0]?tables[0].querySelectorAll('tbody tr'):[])].map(tr=>{
-      const td=cells(tr);
-      if(td.length<4)return null;                       // the "No agencies" colspan row
-      const nameCell=td[1].cloneNode(true);
-      const gEl=nameCell.querySelector('span');
-      const group=gEl?gEl.textContent.trim().replace(/^\(|\)$/g,''):'';
-      if(gEl)gEl.remove();
-      const o={num:td[0].textContent.trim(),name:nameCell.textContent.trim()};
-      if(group)o.group=group;
-      if(td[2].textContent.includes('\u2713'))o.in=1;
-      if(td[3].textContent.includes('\u2713'))o.ord=1;
-      return o;
-    }).filter(Boolean);
-
-    const pallets=[...(tables[1]?tables[1].querySelectorAll('tbody tr'):[])].map(tr=>{
-      const td=cells(tr);
-      if(td.length<7)return null;                       // the "No pallets" colspan row
-      const mat=td[1].textContent.trim();
-      const qtyM=td[3].textContent.trim().match(/^(\S+)\s+(\S+)$/);
-      const perTxt=td[5].textContent.trim();
-      const perM=perTxt.match(/^(\d+)\s/);
-      // Pallet quantities can be fractional (bin weights), so calcAlloc's leftover is
-      // often a float, including float residue like "0.7300000000000004". Match the
-      // number as v4 printed it and keep it verbatim: this is a historical record,
-      // not a place to start rounding.
-      const leftM=perTxt.match(/\u00b7\s*([\d.]+)\s+leftover/);
-      const o={
-        // v4 rendered a missing material number as the string "⚠ missing"; the record
-        // it stood for was an empty value. Undo the display placeholder.
-        mat:mat==='\u26a0 missing'?'':mat,
-        desc:td[2].textContent.trim(),
-        qty:qtyM?(isNaN(+qtyM[1])?qtyM[1]:+qtyM[1]):td[3].textContent.trim(),
-        unit:qtyM?qtyM[2]:'cases',
-        n:parseInt(td[4].textContent.trim(),10)||0,
-        per:perM?+perM[1]:0
-      };
-      if(leftM)o.leftover=+leftM[1];
-      if(td[6].textContent.includes('\u2713'))o.done=1;
-      return o;
-    }).filter(Boolean);
-
-    const notesEl=doc.querySelector('.pr-section .pr-notes, .pr-section div[style*="white-space:pre-wrap"]');
-    const snapshot={agencies,pallets,lottery:[],notes:notesEl?notesEl.textContent:''};
-    const {html,allocations,...rest}=r;
-    return {...rest,snapshot};
+    const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`checkinpallets-v2-backup-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }catch(e){
-    return r;   // unparseable: leave v4 shape intact, reportHTML() still renders it
+    alert('Could not export data: '+(e&&e.message||e));
   }
 }
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// LOAD / SAVE / SEED
-// ---------------------------------------------------------------------------
-let syncTimer = null;
-
-function setSyncState(state) {
-  const el = document.getElementById('sidebar-sync'); if (!el) return;
-  const S = { idle: ['', 'transparent'], syncing: ['⟳ Syncing…', 'rgba(255,255,255,0.4)'],
-              saved: ['✓ Saved', '#4ade80'], conflict: ['⚠ Conflict', '#fbbf24'], error: ['✕ Error', '#f87171'] };
-  const [text, color] = S[state] || S.idle;
-  el.textContent = text; el.style.color = color;
-  if (state === 'saved') setTimeout(() => setSyncState('idle'), 3000);
-}
-
-// The guard v4 lacked: its migrateDb() was a chain of if(db.version<N) with no
-// upper bound, so an older build accepted a newer file and wrote its own older
-// shape back over it. Refuse to write, and say why.
-function checkDbVersion() {
-  const v = (Store.get('meta') || {}).version || 0;
-  Store.tooNew = v > SCHEMA_VERSION;
-  if (Store.tooNew) setSyncState('error');
-  return !Store.tooNew;
-}
-
-function save() {
-  if (Store.tooNew) {
-    setSyncState('error');
-    console.warn(`Refusing to save: ${DATA_DIR} is schema v${Store.get('meta').version}, this build understands v${SCHEMA_VERSION}.`);
-    return;
-  }
-  normalizeTables();
-  Store.writeLocal();
-  clearTimeout(syncTimer);
-  setSyncState('syncing');
-  syncTimer = setTimeout(() => Store.flush().catch(() => {}), 1500);
-}
-
-function load() {
-  Store.reset();
-  const hadLocal = Store.readLocal();
-  // Bind immediately — over empty tables if nothing is local yet — so db is never
-  // the bare {} while the GitHub pull is in flight. The init sequence renders the
-  // sidebar synchronously right after load() (the contributor's app loaded
-  // synchronously; v6 does not), and an unbound db made that render throw.
-  bindDbView();
-  if (hadLocal) { checkDbVersion(); renderSidebar(); }
-
-  Store.pullAll().then(found => {
-    if (found) {
-      bindDbView();
-      if (!checkDbVersion()) {
-        renderSidebar();
-        alert(`${DATA_DIR} was written by a newer version of this app (schema v${Store.get('meta').version}; ` +
-              `this build understands v${SCHEMA_VERSION}).\n\nThe app is now read-only so it cannot overwrite that data.`);
+function importV2Data(){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.json,application/json';
+  input.onchange=(e)=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(evt)=>{
+      let parsed;
+      try{
+        parsed=JSON.parse(evt.target.result);
+      }catch(err){
+        alert('Could not read that file — it doesn\'t look like valid JSON.');
         return;
       }
-      normalizeTables();
-      Store.markAllClean();
-      Store.writeLocal();
-      // The order form cached its tables at init(), before this pull landed.
-      if (typeof OrderForm !== 'undefined' && OrderForm.refresh) OrderForm.refresh();
+      if(!parsed||typeof parsed!=='object'||!Array.isArray(parsed.distributions)){
+        alert('That file doesn\'t look like a valid backup (no distributions list found in it).');
+        return;
+      }
+      if(!confirm(`This will REPLACE all data currently in this browser with the imported backup (${parsed.distributions.length} distributions). This cannot be undone. Continue?`))return;
+      db=parsed;
+      migrateDb(); // fills in anything the backup predates, same as a normal load
+      save();
+      cur=null;
+      document.getElementById('screen-dist').classList.remove('active');
+      document.getElementById('screen-home').classList.add('active');
       renderSidebar();
-    } else if (!hadLocal) {
-      // Nothing local and nothing remote: first run on this stream.
-      bindDbView();
+      alert('Data imported successfully.');
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function resetV2TestData(){
+  let clearedOk=false;
+  try{
+    localStorage.removeItem('fb_db_v2');
+    clearedOk=(localStorage.getItem('fb_db_v2')===null);
+  }catch(e){
+    alert('Could not clear storage: '+(e&&e.message||e));
+    return;
+  }
+  if(!clearedOk){
+    alert('Storage did not clear as expected. Try manually clearing site data for this page in your browser settings instead.');
+    return;
+  }
+  alert('Test data cleared. Click OK and the page will reload fresh.');
+  location.href=location.pathname+'?reset='+Date.now();
+}
+
+let v2Trace=[];
+function traceV2(label){
+  try{v2Trace.push(`${label}: v=${db.version}, dist=${db.distributions.length}`);}catch(e){v2Trace.push(`${label}: ERROR ${e.message}`);}
+}
+
+function load(){
+  v2Trace=[];
+  traceV2('start');
+  try{const r=localStorage.getItem('fb_db_v2');if(r)db=JSON.parse(r);traceV2('after-localStorage-read (had saved data: '+(!!r)+')');}catch(e){traceV2('localStorage-read-ERROR: '+e.message);}
+  try{
+    migrateDb();
+    traceV2('after-first-migrateDb');
+  }catch(e){
+    traceV2('first-migrateDb-THREW: '+e.message);
+  }
+  if(!db.distributions.length){
+    // Something left this database with no distributions — whatever the cause,
+    // force a clean re-seed rather than showing an empty app with no way forward.
+    db.version=0;
+    try{
+      migrateDb();
+      traceV2('after-selfheal-migrateDb');
+    }catch(e){
+      traceV2('selfheal-migrateDb-THREW: '+e.message);
+    }
+  }
+  try{localStorage.setItem('fb_db_v2',JSON.stringify(db));traceV2('after-save');}catch(e){traceV2('save-ERROR: '+e.message);}
+  renderSidebar();
+  ghGet().then(remote=>{
+    traceV2('ghGet-resolved (remote: '+(!!remote)+')');
+    if(remote){
+      db=remote;
+      migrateDb();
+      try{localStorage.setItem('fb_db_v2',JSON.stringify(db))}catch(e){}
+      traceV2('after-ghGet-remote-migrateDb');
       renderSidebar();
     }
     setSyncState('idle');
     showMigrationNoticeIfAny();
-  }).catch(e => {
-    console.error('load failed:', e);
-    setSyncState('error');
-    if (!hadLocal) bindDbView();
-    renderSidebar();
-    showMigrationNoticeIfAny();
-  });
+  }).catch((e)=>{traceV2('ghGet-CAUGHT: '+(e&&e.message));showMigrationNoticeIfAny();});
 }
-
-function showMigrationNoticeIfAny() {
-  const n = (Store.get('meta') || {}).migrationNotice;
-  if (!n) return;
-  const lines = [];
-  if (n.provisionalSites && n.provisionalSites.length)
-    lines.push(`<strong>${n.provisionalSites.length} site(s) have a placeholder code</strong> because no CERES code is known for them: ${n.provisionalSites.join(', ')}. Replace them once you have the real codes.`);
-  if (n.orphanSchedules && n.orphanSchedules.length)
-    lines.push(`<strong>${n.orphanSchedules.length} archived distribution(s)</strong> were referenced only by old reports — their distribution had been deleted. They were recreated as inactive so the reports keep a valid link: ${n.orphanSchedules.join(', ')}.`);
-  if (n.provisionalItems && n.provisionalItems.length)
-    lines.push(`<strong>${n.provisionalItems.length} item(s) are free text rather than a material number</strong> (${n.provisionalItems.slice(0, 6).join(', ')}${n.provisionalItems.length > 6 ? '…' : ''}). They were kept because reports reference them, and are flagged for cleanup.`);
-  if (n.collapsedOrders)
-    lines.push(`<strong>${n.collapsedOrders} duplicate saved order(s)</strong> were collapsed — exact repeats with no order number.`);
-  if (n.crossSiteDrafts && n.crossSiteDrafts.length)
-    lines.push(`<strong>${n.crossSiteDrafts.length} draft order(s) point at a different site</strong> than the distribution they were attached to: ${n.crossSiteDrafts.join('; ')}. The entered location was kept — check whether it is right.`);
-  if (!lines.length) return;
-
-  const dismiss = () => { Store.get('meta').migrationNotice = null; save(); closeModal('m-confirm'); restoreCancel(); };
-  const cancelBtn = document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
-  const restoreCancel = () => { cancelBtn.textContent = 'Cancel'; cancelBtn.onclick = () => closeModal('m-confirm'); };
-  document.getElementById('conf-title').textContent = 'Migration to schema v6';
-  document.getElementById('conf-msg').innerHTML = lines.map(l => `<div style="margin-bottom:10px;">${l}</div>`).join('');
-  document.getElementById('conf-ok').textContent = 'Got it';
-  document.getElementById('conf-ok').className = 'btn btn-primary';
-  document.getElementById('conf-ok').onclick = dismiss;
-  cancelBtn.textContent = 'Got it';
-  cancelBtn.onclick = dismiss;
+function showMigrationNoticeIfAny(){
+  if(!db.migrationNotice)return;
+  const n=db.migrationNotice;
+  const lines=[];
+  if(n.createdDists&&n.createdDists.length)lines.push(`Created new distribution(s): ${n.createdDists.join(', ')}.`);
+  if(n.conflicts&&n.conflicts.length)lines.push(`${n.conflicts.length} agency number(s) appeared in more than one of your old distributions — each was kept in whichever distribution it was found in last (${n.conflicts.map(c=>c.num).join(', ')}). Double-check these landed in the right place under Manage Distributions.`);
+  const cancelBtn=document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
+  const restoreCancel=()=>{cancelBtn.textContent='Cancel';cancelBtn.onclick=()=>closeModal('m-confirm');};
+  const dismiss=()=>{delete db.migrationNotice;save();closeModal('m-confirm');restoreCancel();};
+  document.getElementById('conf-title').textContent='Heads up — one-time migration notice';
+  document.getElementById('conf-msg').innerHTML=lines.map(l=>`<div style="margin-bottom:8px;">${l}</div>`).join('');
+  document.getElementById('conf-ok').textContent='Got it';
+  document.getElementById('conf-ok').className='btn btn-primary';
+  document.getElementById('conf-ok').onclick=dismiss;
+  cancelBtn.textContent='Got it';
+  cancelBtn.onclick=dismiss;
   openModal('m-confirm');
-}
-
-// ---------------------------------------------------------------------------
-// PARALLEL-RUN SEEDING
-// ---------------------------------------------------------------------------
-// Re-runnable on purpose: the older streams keep closing real weeks while v6 is
-// being proven, so the useful moment to re-pull is immediately before cutover.
-// Strictly one-way — nothing here writes to data.json or data-v5.json.
-async function fetchSeedSource() {
-  for (const src of SEED_SOURCES) {
-    const res = await fetch(src.api, { headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github.v3+json' } });
-    if (res.status === 404) continue;
-    if (!res.ok) throw new Error(`GET ${src.label} -> ${res.status}`);
-    const json = await res.json();
-    if (!json.content) throw new Error(`${src.label} source is too large for the contents API to return inline`);
-    return { ...src, db: JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g, ''))))) };
-  }
-  return null;
-}
-
-function confirmSeedFromLive() {
-  const have = (db.distributions || []).length;
-  document.getElementById('conf-title').textContent = 'Pull from an older stream?';
-  document.getElementById('conf-msg').innerHTML =
-    `<div>Reads the newest older stream available (v5 <code>data-v5.json</code>, falling back to v4 <code>data.json</code>), migrates it to schema v6, and replaces everything in this test app.</div>`
-    + `<div style="margin-top:10px;">Those files are <strong>not</strong> touched — this only reads. This app writes to <code>${DATA_DIR}</code>.</div>`
-    + (have ? `<div style="margin-top:10px;color:#92400e;font-weight:600;">⚠ Any work you have done in this v6 app (${have} distribution(s)) will be discarded.</div>` : '');
-  document.getElementById('conf-ok').textContent = 'Pull & migrate';
-  document.getElementById('conf-ok').className = 'btn btn-primary';
-  document.getElementById('conf-ok').onclick = async () => {
-    closeModal('m-confirm');
-    setSyncState('syncing');
-    try {
-      const src = await fetchSeedSource();
-      if (!src) { alert('No older data file found — nothing to pull.'); setSyncState('idle'); return; }
-      const beforeBytes = JSON.stringify(src.db).length;
-      const tables = migrateToV6(src.db);
-      const shas = {}; TABLES.forEach(t => { shas[t.name] = Store.t[t.name] ? Store.t[t.name].sha : null; });
-      Store.reset(tables);
-      TABLES.forEach(t => { Store.t[t.name].sha = shas[t.name]; });   // keep shas so the push updates in place
-      Store.tooNew = false;
-      bindDbView();
-      cur = null;
-      save();
-      if (typeof OrderForm !== 'undefined' && OrderForm.refresh) OrderForm.refresh();
-      renderSidebar();
-      document.getElementById('screen-home').classList.add('active');
-      document.getElementById('screen-dist').classList.remove('active');
-      const afterBytes = TABLES.reduce((n, t) => n + JSON.stringify(Store.get(t.name)).length, 0);
-      alert(`Pulled ${src.label} data (schema v${src.db.version}) and migrated to v${SCHEMA_VERSION}.\n\n`
-        + `${Store.get('sites').length} sites · ${Store.get('agencies').length} agencies · `
-        + `${Store.get('items').length} items · ${Store.get('schedules').length} schedules\n`
-        + `${allClosedEvents().length} reports preserved\n\n`
-        + `${(beforeBytes / 1024).toFixed(0)} KB in one file → ${(afterBytes / 1024).toFixed(0)} KB across ${TABLES.length} tables.`);
-      showMigrationNoticeIfAny();
-    } catch (e) {
-      setSyncState('error');
-      alert('Could not pull: ' + e.message);
-    }
-  };
-  openModal('m-confirm');
-}
-
-function initParallelRunUI() {
-  if (!IS_PARALLEL_RUN) return;      // cutover: these vanish on their own
-  const btn = document.getElementById('btn-seed');
-  const badge = document.getElementById('parallel-badge');
-  if (btn) { btn.style.display = 'flex'; btn.textContent = '⇣ Pull from older stream'; }
-  if (badge) {
-    badge.style.display = 'block';
-    badge.innerHTML = `SCHEMA v${SCHEMA_VERSION} TEST BUILD<br><span style="opacity:0.75;">writing to ${DATA_DIR}</span>`;
-  }
-  document.title = '[v6 TEST] ' + document.title;
 }
 
 function uid(){return Shared.uid();}
@@ -2086,7 +1278,7 @@ let sidebarScheduleDate = todayStr();
 // now the ONLY visible date control in the app — the Order Form's own Date field is
 // hidden and driven entirely from here. Setting it here pushes into that hidden
 // field and fires its existing 'change' handling (see bindDateListener in
-// order-form-v6.js), which refreshes the Scheduled Order dropdown, tries to
+// order-form_v2.js), which refreshes the Scheduled Order dropdown, tries to
 // auto-match a real order number, and reports back here via its own call to
 // setSidebarScheduleDate — so this function is safely re-entrant.
 function setSidebarScheduleDate(val){
@@ -2112,9 +1304,8 @@ function getScheduledDistsForDate(date){
   const weekday=new Date(date+'T00:00:00').getDay();
   const matchedIds=new Set();
   entries.forEach(entry=>{
-    // v6: schedules carry the site's CERES code, so the site->distribution join is
-    // a filter — not a reverse lookup through DIST_LOCATION_MAP's display names.
-    const candidates=db.distributions.filter(d=>d.siteCode===entry.code);
+    const names=OrderForm.getDistNamesForCode(entry.code);
+    const candidates=db.distributions.filter(d=>names.includes(d.name));
     const dayMatched=candidates.filter(d=>d.dayOfWeek===weekday);
     (dayMatched.length?dayMatched:candidates).forEach(d=>matchedIds.add(d.id));
   });
@@ -2170,6 +1361,19 @@ function toggleSidebarShowAll(){
   renderSidebar();
 }
 
+const V2_BUILD_TAG='BUILD-2026-09-22-NOTOKEN-33';
+
+function updateV2DebugInfo(extra){
+  const el=document.getElementById('v2-debug-info');
+  if(!el)return;
+  let seedInfo;
+  try{
+    seedInfo=`SEED_AGENCIES: ${typeof SEED_AGENCIES==='undefined'?'UNDEFINED':SEED_AGENCIES.length}`;
+  }catch(e){
+    seedInfo=`SEED_AGENCIES: ERROR (${e.message})`;
+  }
+  el.innerHTML=`<strong style="color:#fde68a;">${V2_BUILD_TAG}</strong><br>cur: ${cur||'null'}<br>db.version: ${db.version}<br>distributions: ${(db.distributions||[]).length}<br>${seedInfo}<br>sidebarDate: ${sidebarScheduleDate||'(empty)'}<br>showAll: ${sidebarShowAll}${extra?('<br>'+extra):''}<br><br><strong>trace:</strong><br>${(window.v2Trace||v2Trace||[]).join('<br>')}`;
+}
 
 function renderSidebar(){
   try{
@@ -2180,6 +1384,7 @@ function renderSidebar(){
     if(hint) hint.style.display=(cur?'none':'block');
 
     const scheduled=getScheduledDistsForDate(sidebarScheduleDate);
+    updateV2DebugInfo(`scheduled: ${scheduled.length}`);
 
     if(sidebarShowAll){
       if(noOrdersNote) noOrdersNote.style.display='none';
@@ -2199,9 +1404,10 @@ function renderSidebar(){
     if(noOrdersNote) noOrdersNote.style.display='none';
     renderSidebarDistItems(scheduled);
   }catch(err){
-    console.error('renderSidebar failed:',err);
+    // Surface the error directly on the page — no console access needed to see it.
+    updateV2DebugInfo(`<span style="color:#fca5a5;">ERROR: ${(err&&err.message)||err}</span>`);
     const list=document.getElementById('sidebar-dist-list');
-    if(list) list.innerHTML=`<div style="padding:8px 16px;font-size:11px;color:#fca5a5;">Could not show distributions — reload the page.</div>`;
+    if(list) list.innerHTML=`<div style="padding:8px 16px;font-size:11px;color:#fca5a5;">Sidebar error — see debug info below.</div>`;
   }
 }
 
@@ -2259,10 +1465,6 @@ function switchTab(tab,btn){
   else if(tab==='settings')renderSettings();
 }
 
-// SUPERSEDED by shipmentLinesFrom() / dispatchShipment() + palletsFromShipment():
-// the order half and the distribution half now meet at the shipment manifest. No
-// longer called by v6 — the send dialog's preview moved onto the same path as the
-// send. Kept in place rather than removed.
 function mapOrderItemsToPallets(orderItems){
   const out=[];
   (orderItems||[]).forEach(it=>{
@@ -2281,39 +1483,18 @@ function mapOrderItemsToPallets(orderItems){
   return out;
 }
 
-// "Send to pallets" — the truck leaving the warehouse and arriving at the site.
-//
-// Previously one in-memory copy (mapOrderItemsToPallets) straight from the order
-// form's rows into d.pallets. Now it crosses the wall properly: Order dispatches
-// a shipment, Distribution receives that shipment. The manifest is a durable,
-// immutable record of what actually went on the truck, so the two halves can be
-// pulled apart later without either learning the other's shapes.
-function applyOrderFormToPallets(overwrite){
+function applyOrderFormToPallets(mode){
   const d=getDist();if(!d)return;
   OrderForm.flush();
-  const order=orderFormFor(d);
-  const shipment=dispatchShipment(order,d.id);
-  const mapped=palletsFromShipment(shipment);
-  if(!mapped.length){
-    // Nothing went on the truck — drop the empty manifest rather than leaving a
-    // dispatch record for a shipment that never happened.
-    const ships=Store.get('shipments');
-    ships.splice(ships.indexOf(shipment),1);
-    order.status='draft';
-    alert('No items to send yet. Add items in Order Form first.');
-    return;
-  }
-  if(overwrite){
-    // Start over from the current order: exactly its lines, uncounted, nothing
-    // marked done, and pallets added by hand are gone too.
+  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
+  if(!mapped.length){alert('No items to send yet. Add items in Order Form first.');return;}
+  if(mode==='replace'){
     d.pallets=mapped;
-    d.palletsDone={};
   }else{
-    // Every pallet that survives keeps its id, so its done mark survives with it.
-    d.pallets=reconcilePallets(d.pallets,mapped).pallets;
+    d.pallets=d.pallets||[];
+    mapped.forEach(p=>d.pallets.push(p));
   }
-  d.shipmentId=shipment.id;
-  // The catalog grows from whatever actually shipped.
+  if(d.orderForm)d.orderForm.lastSentAt=new Date().toISOString();
   mapped.forEach(p=>{
     if(!p.materialNumber)return;
     const libItems=getLibItems();
@@ -2335,44 +1516,72 @@ function applyOrderFormToPallets(overwrite){
 // warehouse staff already made. Pallets whose item was removed from the order form are
 // dropped; new items become new pallet rows. Silently does nothing if there's nothing
 // with a quantity to send yet — this runs on every save, so it must never alert/interrupt.
+function autoSyncOrderFormToPallets(){
+  const d=getDist();if(!d)return;
+  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
+  if(!mapped.length)return;
+  const oldPallets=d.pallets||[];
+  const oldDone=d.palletsDone||{};
+  const usedOldIds=new Set();
+  const newDone={};
+  const newPallets=mapped.map(p=>{
+    const match=oldPallets.find(op=>!usedOldIds.has(op.id)&&(
+      (p.materialNumber&&op.materialNumber&&op.materialNumber.toLowerCase()===p.materialNumber.toLowerCase())
+      ||(!p.materialNumber&&!op.materialNumber&&op.desc===p.desc)
+    ));
+    if(match){
+      usedOldIds.add(match.id);
+      newDone[match.id]=!!oldDone[match.id];
+      return {...p,id:match.id};
+    }
+    return p;
+  });
+  d.pallets=newPallets;
+  d.palletsDone=newDone;
+  if(d.orderForm)d.orderForm.lastSentAt=new Date().toISOString();
+  const libItems=getLibItems();
+  let libChanged=false;
+  newPallets.forEach(p=>{
+    if(!p.materialNumber)return;
+    if(!libItems.find(i=>(i.materialNumber||'').toLowerCase()===p.materialNumber.toLowerCase())){
+      libItems.push({name:p.desc,materialNumber:p.materialNumber});
+      libChanged=true;
+    }
+  });
+  if(libChanged){
+    libItems.sort((a,b)=>a.name.localeCompare(b.name));
+    db.itemLibrary=libItems;
+  }
+  save();
+  // Only re-render if the Pallets tab happens to be visible right now — this runs from
+  // the Order Form tab most of the time, and renderPallets() assumes its DOM is present.
+  if(document.getElementById('tab-pallets')&&document.getElementById('tab-pallets').classList.contains('active')){
+    renderPallets();
+  }
+  renderDistHero();
+}
 
 function confirmSendToPallets(){
   const d=getDist();if(!d)return;
   OrderForm.flush();
-  // Preview through the same functions the send uses, recording nothing, so the
-  // numbers shown are the numbers that happen.
-  const lines=shipmentLinesFrom(orderFormFor(d));
-  if(!lines.length){alert('No items to send yet. Add items in Order Form first.');return;}
-  const existing=d.pallets||[];
-  const ok=document.getElementById('conf-ok');
+  const mapped=mapOrderItemsToPallets(OrderForm.getItems());
+  if(!mapped.length){alert('No items to send yet. Add items in Order Form first.');return;}
+  const existing=(d.pallets||[]).length;
+  document.getElementById('conf-title').textContent='Send to Pallets?';
+  document.getElementById('conf-msg').innerHTML=existing
+    ? `This distribution already has <strong>${existing}</strong> pallet(s). Replace them with ${mapped.length} item(s) from the order form, or append as new pallets?`
+    : `Add ${mapped.length} pallet(s) from the order form to this distribution?`;
   const cancelBtn=document.querySelector('#m-confirm .btn-row .btn:not(#conf-ok)');
   const restoreCancel=()=>{cancelBtn.textContent='Cancel';cancelBtn.onclick=()=>closeModal('m-confirm');};
-  if(!existing.length){
-    document.getElementById('conf-title').textContent='Send to Pallets?';
-    document.getElementById('conf-msg').innerHTML=`Add ${lines.length} pallet(s) from the order form to this distribution?`;
-    ok.textContent='Add to Pallets';
-    ok.className='btn btn-primary';
-    ok.onclick=()=>{closeModal('m-confirm');restoreCancel();applyOrderFormToPallets(false);};
-  }else{
-    const plan=reconcilePallets(existing,palletsFromShipment({id:null,lines})).stats;
-    document.getElementById('conf-title').textContent='Update pallets from order?';
-    document.getElementById('conf-msg').innerHTML=
-      `<div style="line-height:1.6;">`
-      +`<div><strong>${plan.kept}</strong> already on pallets — counts and done marks kept</div>`
-      +`<div><strong>${plan.added}</strong> new from the order, not yet counted</div>`
-      +`<div><strong>${plan.untouched}</strong> not on this order — left as they are</div>`
-      +`</div>`
-      +`<label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;padding:10px 12px;border:1px solid var(--gray-200);border-radius:var(--r-md);cursor:pointer;font-size:13px;">`
-      +`<input type="checkbox" id="send-overwrite" style="margin-top:3px;flex-shrink:0;">`
-      +`<span><strong>Overwrite</strong> — start pallets over from this order. Clears every count and done mark, and removes pallets added by hand.</span>`
-      +`</label>`;
-    const box=document.getElementById('send-overwrite');
-    const sync=()=>{ok.textContent=box.checked?'Start over':'Update pallets';ok.className=box.checked?'btn btn-danger':'btn btn-primary';};
-    box.onchange=sync;sync();
-    ok.onclick=()=>{const overwrite=box.checked;closeModal('m-confirm');restoreCancel();applyOrderFormToPallets(overwrite);};
-  }
-  cancelBtn.textContent='Cancel';
-  cancelBtn.onclick=()=>{closeModal('m-confirm');restoreCancel();};
+  document.getElementById('conf-ok').textContent=existing?'Replace all':'Add to Pallets';
+  document.getElementById('conf-ok').className='btn btn-primary';
+  document.getElementById('conf-ok').onclick=()=>{closeModal('m-confirm');restoreCancel();applyOrderFormToPallets('replace');};
+  cancelBtn.textContent=existing?'Append instead':'Cancel';
+  cancelBtn.onclick=()=>{
+    closeModal('m-confirm');
+    restoreCancel();
+    if(existing)applyOrderFormToPallets('append');
+  };
   openModal('m-confirm');
 }
 
@@ -2891,35 +2100,24 @@ function confirmCloseWeek(){
     +(missingMatNum?`<div style="margin-top:10px;color:#92400e;font-weight:600;">⚠ ${missingMatNum} pallet(s) here have no material number — they'll still be saved, but won't be usable in the CERES allocation upload later.</div>`:'');
   document.getElementById('conf-ok').textContent='Close Week';
   document.getElementById('conf-ok').className='btn btn-danger';
-  document.getElementById('conf-ok').onclick=async()=>{
-    closeModal('m-confirm');
-    const report=saveReportSnapshot(d);          // 1. append to events-<year>
+  document.getElementById('conf-ok').onclick=()=>{
+    const report=saveReportSnapshot(d);
     downloadReportHTML(report);
-    try{
-      normalizeTables();
-      Store.writeLocal();
-      await Store.flush();                        // 2. persist the archive
-    }catch(e){
-      // The archive did not land. Leave the week open rather than clearing it —
-      // the alternative is losing the work to make the file tidy.
-      const arr=archiveFor(report.date);
-      const i=arr.findIndex(x=>x.id===report.id);
-      if(i>=0)arr.splice(i,1);
-      alert('Could not save the report — the week has been left open so nothing is lost.\n\n'+e.message);
-      return;
-    }
-    clearEventAfterClose(d,nextDate);              // 3. only now clear the open state
-    // The order form keeps its own copy of the date in its input, and switching
-    // tabs flushes that input back onto the distribution (saveData: dist.date =
-    // of-date). Left stale, the switchTab below would silently undo the advance —
-    // which is how Close Week has behaved since the two halves were merged (v23
-    // has the same sequence). Point the input at the new date before any flush.
-    const ofDate=document.getElementById('of-date');
-    if(ofDate)ofDate.value=nextDate;
-    // Keep the sidebar's date filter on the advanced date, or the distribution
-    // could vanish from the filtered list right after closing the week.
+    d.checkedIn=[];
+    d.pickOrder=[];
+    d.lateSlots=[];
+    d.pallets=[];
+    d.palletsDone={};
+    d.orderStatus={};
+    if(d.orderForm){d.orderForm.items=[];d.orderForm.lastSentAt=null;}
+    d.date=nextDate;
+    save();closeModal('m-confirm');
+    // Keep the sidebar's date filter pointed at wherever this distribution just
+    // advanced to, or it could silently vanish from the filtered list right
+    // after closing the week. A direct variable update (not the full
+    // setSidebarScheduleDate cascade) is enough here — Close Week has already
+    // explicitly reset everything else itself.
     sidebarScheduleDate=nextDate;
-    save();
     renderDistHero();renderCheckin();renderSidebar();
     switchTab('checkin',document.getElementById('nav-checkin'));
   };
@@ -3045,204 +2243,108 @@ function confirmDelete(){
 }
 
 // PRINT REPORT
-// ===========================================================================
-// REPORTS — schema v5
-// ===========================================================================
-// A report is a FROZEN snapshot of a distribution at Close Week. Every value is
-// denormalized at capture time on purpose: masterAgencies is live and mutable
-// (rename, delete, hide), so a report that referenced agencies by id would
-// silently rewrite its own history months later.
-//
-// v4 froze it by storing the RENDERED HTML of the report, plus a parallel
-// allocations[] array. That was ~90% of the whole data file, and ~70% of the
-// HTML was inline style attributes — 13 unique style strings repeated across
-// 2,477 attributes. v5 stores the data; the HTML and the allocation rows are
-// both derived from it on demand. Same frozen guarantee, ~11x smaller.
-//
-//   snapshotReport(d) -> snap     capture (Close Week / live print)
-//   renderReport(snap, meta)      snap -> HTML (print, view, download)
-//   allocationsFrom(snap, date)   snap -> CERES upload rows
-//
-const esc=Shared.escapeHtml;
-
-// Report styling. One copy per document instead of one copy per table cell.
-// Injected into this page at startup and inlined into the standalone download
-// so the downloaded file renders identically with no host stylesheet.
-const REPORT_CSS=`
-.pr-wrap{font-family:'DM Sans',sans-serif;color:#202124;}
-.pr-header{background:#2D1B69;color:white;padding:20px 24px;margin-bottom:20px;page-break-after:avoid;}
-.pr-kicker{font-size:11px;opacity:0.5;margin-bottom:4px;letter-spacing:0.06em;font-family:monospace;}
-.pr-title{font-size:22px;font-weight:700;}
-.pr-meta{margin-top:10px;font-size:13px;opacity:0.8;display:flex;gap:24px;}
-h3.pr-section-title{font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;}
-.pr-table{width:100%;border-collapse:collapse;margin-bottom:24px;}
-.pr-table th{background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;}
-.pr-table td{padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;}
-.pr-table th.c,.pr-table td.c{text-align:center;}
-.pr-empty{padding:12px;color:#9AA0A6;font-style:italic;}
-.pr-group{font-size:11px;color:#C47A1E;}
-.pr-warn{color:#C47A1E;}
-.pr-notes{font-size:13px;color:#202124;white-space:pre-wrap;padding:12px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E8EAED;}
-.pr-late{font-size:11px;color:#C47A1E;font-weight:600;}
-`;
-try{document.head.insertAdjacentHTML('beforeend','<style id="report-css">'+REPORT_CSS+'</style>');}catch(e){}
-
-// ---- CAPTURE ---------------------------------------------------------------
-// Freeze the lottery pick order. d.pickOrder holds 'solo:<agencyId>' / 'group:<name>'
-// keys that slotsFromPickOrder() resolves against the LIVE roster — a deleted agency
-// just silently drops out of the order. So resolve to display values here, same
-// immutability rule as the agency table.
-function freezeLottery(d){
-  const late=new Set(d.lateSlots||[]);
-  const slots=buildLotterySlots(d);
-  return (d.pickOrder||[]).map(key=>{
-    const slot=key.startsWith('group:')
-      ? slots.find(s=>s.type==='group'&&s.name===key.slice(6))
-      : slots.find(s=>s.type==='solo'&&s.agency.id===key.slice(5));
-    if(!slot)return null;
-    const o=slot.type==='group'
-      ? {group:slot.name,members:slot.agencies.map(a=>({num:a.num||'',name:a.name}))}
-      : {num:slot.agency.num||'',name:slot.agency.name};
-    if(late.has(key))o.late=1;
-    return o;
-  }).filter(Boolean);
-}
-
-function snapshotReport(d){
+function buildReportHTML(d){
   const cset=new Set(d.checkedIn||[]);
   const omap=d.orderStatus||{};
-  const pdone=d.palletsDone||{};
-  // Sorted by name at capture time — the rendered order is now part of the frozen
-  // record rather than a function of live roster order.
-  const agencies=[...getDistAgencies(d)].sort((a,b)=>a.name.localeCompare(b.name)).map(a=>{
-    const o={num:a.num||'',name:a.name};
-    if(a.group)o.group=a.group;
-    if(cset.has(a.id))o.in=1;        // omitted rather than false — this is most of the
-    if(omap[a.id])o.ord=1;           // remaining size win over a naive object dump
-    return o;
-  });
-  const pallets=(d.pallets||[]).map(p=>{
-    const alloc=calcAlloc(d,p.qty);
-    const o={mat:p.materialNumber||'',desc:p.desc,qty:p.qty,
-             unit:p.type==='bin'?'units':'cases',n:alloc.count,per:alloc.perAgency};
-    if(alloc.leftover>0)o.leftover=alloc.leftover;
-    if(pdone[p.id])o.done=1;
-    return o;
-  });
-  return {agencies,pallets,lottery:freezeLottery(d),notes:d.notes||''};
-}
+  const allAgencies=[...getDistAgencies(d)].sort((a,b)=>a.name.localeCompare(b.name));
+  const checkedIn=allAgencies.filter(a=>cset.has(a.id));
 
-// ---- DERIVE ----------------------------------------------------------------
-// Shaped for the CERES allocation upload. v4 stored these rows alongside the HTML
-// (33% of the data file); they are fully recoverable from the snapshot, so v5
-// computes them at the point of use instead.
-function allocationsFrom(snap,date){
+  const agencyRows=allAgencies.map(a=>{
+    const checked=cset.has(a.id);
+    const hasOrder=!!omap[a.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.num||''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${a.name}${a.group?` <span style="font-size:11px;color:#C47A1E;">(${a.group})</span>`:''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${checked?'✓':''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${hasOrder?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  const palletRows=(d.pallets||[]).map((p,i)=>{
+    const alloc=calcAlloc(d,p.qty);
+    const unit=p.type==='bin'?'units':'cases';
+    const done=!!(d.palletsDone||{})[p.id];
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${i+1}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.materialNumber||'<span style="color:#C47A1E;">⚠ missing</span>'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.desc}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${p.qty} ${unit}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;">${alloc.count}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;"><strong>${alloc.perAgency} ${unit} each${alloc.leftover>0?` · ${alloc.leftover} leftover`:''}</strong></td>
+      <td style="padding:8px 12px;border-bottom:1px solid #E8EAED;font-size:13px;text-align:center;">${done?'✓':''}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div style="font-family:'DM Sans',sans-serif;color:#202124;">
+      <div class="pr-header" style="background:#2D1B69;color:white;padding:20px 24px;margin-bottom:20px;page-break-after:avoid;">
+        <div style="font-size:11px;opacity:0.5;margin-bottom:4px;letter-spacing:0.06em;font-family:monospace;">DISTRIBUTION REPORT · ${d.date?fmtDateShort(d.date)+' · ':''}Generated ${fmtNow()}</div>
+        <div style="font-size:22px;font-weight:700;">${d.name}</div>
+        <div style="margin-top:10px;font-size:13px;opacity:0.8;display:flex;gap:24px;">
+          <span>${checkedIn.length} of ${allAgencies.length} agencies checked in</span>
+          <span>${(d.pallets||[]).length} pallets</span>
+          <span>${Object.values(d.orderStatus||{}).filter(Boolean).length} orders</span>
+        </div>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Agencies</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agency #</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Name</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Checked In</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Order Pickup</th>
+            </tr>
+          </thead>
+          <tbody>${agencyRows||'<tr><td colspan="4" style="padding:12px;color:#9AA0A6;font-style:italic;">No agencies</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <div class="pr-section">
+        <h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Pallet Allocations</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">#</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Material #</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Description</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Total</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Agencies</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:left;font-size:12px;font-weight:600;">Per Agency</th>
+              <th style="background:#2D1B69;color:white;padding:8px 12px;text-align:center;font-size:12px;font-weight:600;">Done</th>
+            </tr>
+          </thead>
+          <tbody>${palletRows||'<tr><td colspan="7" style="padding:12px;color:#9AA0A6;font-style:italic;">No pallets</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      ${d.notes?`<div class="pr-section"><h3 class="pr-section-title" style="font-size:12px;font-weight:700;color:#5F6368;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Notes</h3><div style="font-size:13px;color:#202124;white-space:pre-wrap;padding:12px 16px;background:#F8F9FA;border-radius:8px;border:1px solid #E8EAED;">${d.notes}</div></div>`:''}
+    </div>`;
+}
+// Structured rows shaped for the future CERES allocation upload: agency #, material #, qty, date.
+function buildAllocationRows(d){
+  const cset=new Set(d.checkedIn||[]);
+  const checkedInAgencies=getDistAgencies(d).filter(a=>cset.has(a.id));
   const rows=[];
-  const checkedIn=(snap.agencies||[]).filter(a=>a.in);
-  (snap.pallets||[]).forEach(p=>{
-    if(p.n<=0||p.per<=0)return;
-    checkedIn.forEach(a=>{
-      rows.push({agencyNum:a.num||'',materialNumber:p.mat||'',description:p.desc,qty:p.per,date});
+  (d.pallets||[]).forEach(p=>{
+    const alloc=calcAlloc(d,p.qty);
+    if(alloc.count<=0||alloc.perAgency<=0)return;
+    checkedInAgencies.forEach(a=>{
+      rows.push({agencyNum:a.num||'',materialNumber:p.materialNumber||'',description:p.desc,qty:alloc.perAgency,date:d.date||todayStr()});
     });
   });
   return rows;
 }
-
-// ---- RENDER ----------------------------------------------------------------
-function renderReport(snap,meta){
-  const agencies=snap.agencies||[], pallets=snap.pallets||[];
-  const checkedIn=agencies.filter(a=>a.in).length;
-  const orders=agencies.filter(a=>a.ord).length;
-
-  const agencyRows=agencies.map(a=>`<tr>`
-    +`<td>${esc(a.num)}</td>`
-    +`<td>${esc(a.name)}${a.group?` <span class="pr-group">(${esc(a.group)})</span>`:''}</td>`
-    +`<td class="c">${a.in?'✓':''}</td>`
-    +`<td class="c">${a.ord?'✓':''}</td>`
-    +`</tr>`).join('');
-
-  const palletRows=pallets.map((p,i)=>`<tr>`
-    +`<td>${i+1}</td>`
-    +`<td>${p.mat?esc(p.mat):'<span class="pr-warn">⚠ missing</span>'}</td>`
-    +`<td>${esc(p.desc)}</td>`
-    +`<td>${esc(p.qty)} ${esc(p.unit)}</td>`
-    +`<td>${p.n}</td>`
-    +`<td><strong>${p.per} ${esc(p.unit)} each${p.leftover>0?` · ${p.leftover} leftover`:''}</strong></td>`
-    +`<td class="c">${p.done?'✓':''}</td>`
-    +`</tr>`).join('');
-
-  const section=(title,heads,rows,cols)=>`
-      <div class="pr-section">
-        <h3 class="pr-section-title">${title}</h3>
-        <table class="pr-table">
-          <thead><tr>${heads}</tr></thead>
-          <tbody>${rows||`<tr><td colspan="${cols}" class="pr-empty">No ${title.toLowerCase()}</td></tr>`}</tbody>
-        </table>
-      </div>`;
-
-  const th=(label,center)=>`<th${center?' class="c"':''}>${label}</th>`;
-
-  return `
-    <div class="pr-wrap">
-      <div class="pr-header">
-        <div class="pr-kicker">DISTRIBUTION REPORT · ${meta.date?fmtDateShort(meta.date)+' · ':''}Generated ${meta.generatedAt?fmtDate(meta.generatedAt.slice(0,10)):fmtNow()}</div>
-        <div class="pr-title">${esc(meta.distName)}</div>
-        <div class="pr-meta">
-          <span>${checkedIn} of ${agencies.length} agencies checked in</span>
-          <span>${pallets.length} pallets</span>
-          <span>${orders} orders</span>
-        </div>
-      </div>
-${section('Agencies',th('Agency #')+th('Name')+th('Checked In',1)+th('Order Pickup',1),agencyRows,4)}
-${section('Pallet Allocations',th('#')+th('Material #')+th('Description')+th('Total')+th('Agencies')+th('Per Agency')+th('Done',1),palletRows,7)}
-      ${snap.notes?`<div class="pr-section"><h3 class="pr-section-title">Notes</h3><div class="pr-notes">${esc(snap.notes)}</div></div>`:''}
-    </div>`;
-}
-
-// A report may still carry v4's stored html if it somehow escaped migration
-// (e.g. written by the live v4 app during the parallel run). Render what we have.
-function reportHTML(r){
-  if(r.snapshot)return renderReport(r.snapshot,r);
-  return r.html||'<div class="pr-empty">This report has no stored content.</div>';
-}
-function reportAllocations(r){
-  if(r.snapshot)return allocationsFrom(r.snapshot,r.date);
-  return r.allocations||[];
-}
-
-// Close Week is the ONE action that spans two tables: a closed event moves out of
-// events-open.json and into events-<year>.json. There is no cross-file
-// transaction on the contents API, so the order is load-bearing — append to the
-// archive FIRST, clear the open state second. A failure between the two leaves a
-// duplicate, which is recoverable; the reverse order loses a week of work.
-// startup/migration de-duplicates on event id.
 function saveReportSnapshot(d){
-  const report={id:uid(),distId:d.id,distName:d.name,
-                scheduleId:d.id,siteCode:d.siteCode,
-                date:d.date||todayStr(),generatedAt:new Date().toISOString(),
-                status:'closed',closedAt:new Date().toISOString(),
-                shipmentId:d.shipmentId||null,
-                snapshot:snapshotReport(d)};
-  archiveFor(report.date).unshift(report);   // step 1: durable
+  const report={id:uid(),distId:d.id,distName:d.name,date:d.date||todayStr(),generatedAt:new Date().toISOString(),html:buildReportHTML(d),allocations:buildAllocationRows(d)};
+  db.reports=db.reports||[];
+  db.reports.unshift(report);
   return report;
 }
-
-// Step 2, run only after the archive write has been persisted. Split out so the
-// ordering is visible at the call site rather than buried in one handler.
-function clearEventAfterClose(d,nextDate){
-  d.checkedIn=[];
-  d.pickOrder=[];
-  d.lateSlots=[];
-  d.pallets=[];
-  d.palletsDone={};
-  d.orderStatus={};
-  d.shipmentId=null;
-  const o=d.orderId?Store.get('orders').find(x=>x.id===d.orderId):null;
-  if(o){o.lines=[];o.lastSentAt=null;o.status='draft';}
-  d.date=nextDate;
-}
 function downloadReportHTML(report){
-  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(report.distName)} — ${report.date}</title><style>${REPORT_CSS}</style></head><body>${reportHTML(report)}</body></html>`;
+  const fullHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${report.distName} — ${report.date}</title></head><body>${report.html}</body></html>`;
   const blob=new Blob([fullHtml],{type:'text/html'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -3253,8 +2355,7 @@ function downloadReportHTML(report){
 }
 function printReport(){
   const d=getDist();if(!d)return;
-  document.getElementById('print-report').innerHTML=
-    renderReport(snapshotReport(d),{distName:d.name,date:d.date,generatedAt:new Date().toISOString()});
+  document.getElementById('print-report').innerHTML=buildReportHTML(d);
   window.print();
 }
 
@@ -3274,8 +2375,8 @@ function renderReportsList(){
     +reports.map(r=>`
       <div class="row-item" style="align-items:center;">
         <div class="row-main">
-          <div style="font-size:14px;font-weight:500;">${esc(r.distName)}</div>
-          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${fmtDateShort(r.date)} · ${reportAllocations(r).length} allocation rows</div>
+          <div style="font-size:14px;font-weight:500;">${r.distName}</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">${fmtDateShort(r.date)} · ${r.allocations.length} allocation rows</div>
         </div>
         <button class="btn btn-sm" style="width:auto;flex-shrink:0;padding:6px 12px;margin-right:6px;" onclick="viewReport('${r.id}')">View / Print</button>
         <button onclick="deleteReport('${r.id}')" style="background:none;border:none;color:var(--gray-300);font-size:18px;cursor:pointer;padding:2px 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--gray-300)'">×</button>
@@ -3285,14 +2386,13 @@ function renderReportsList(){
 function viewReport(id){
   const r=(db.reports||[]).find(x=>x.id===id);if(!r)return;
   closeModal('m-reports-list');
-  document.getElementById('print-report').innerHTML=reportHTML(r);
+  document.getElementById('print-report').innerHTML=r.html;
   window.print();
 }
 function deleteReport(id){
   db.reports=(db.reports||[]).filter(x=>x.id!==id);
   save();renderReportsList();
 }
-
 
 // ITEM LIBRARY
 function getLibItems(){return db.itemLibrary||[];}
@@ -3415,9 +2515,8 @@ document.addEventListener('click',e=>{
   }
 });
 </script>
-<script src="order-form-v6.js"></script>
+<script src="order-form_v2.js"></script>
 <script>
-initParallelRunUI();
 load();
 OrderForm.init({getDb:()=>db,getDist:()=>getDist(),persist:save});
 renderSidebar();

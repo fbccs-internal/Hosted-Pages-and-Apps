@@ -1,15 +1,3 @@
-// order-form-v6.js — v6's own copy of the order form.
-//
-// order-form.js is shared by CheckinPallets_23 and _24, both in active use, so
-// v6 takes a copy rather than editing it. The original is untouched and keeps
-// serving those two; DIST_LOCATION_MAP still lives there and still works for
-// them. v6 simply stops consulting it (see deriveLocationFromDist below).
-//
-// Data access goes through the same _getDb() facade, which under v6 is a view
-// over the split tables: db.orderLog and db.orderSchedule are projections of
-// the one orders table selected by status, and db.copiedItems is per-browser
-// localStorage that is never synced.
-
 /* Order Form module for CheckinPallets CP23 */
 const OrderForm = (function() {
 let _getDb = () => ({});
@@ -132,17 +120,6 @@ function init(config) {
     }
 }
 
-// Re-read the order form's cached tables from the host db. init() does this once,
-// but v6 loads asynchronously — the GitHub pull lands after init — so the host
-// calls this whenever it rebinds db. Data only: none of init()'s one-time DOM
-// wiring, so calling it repeatedly cannot double-bind listeners.
-function refresh() {
-    if (!_getDb) return;
-    loadLocationsList();
-    loadOrderSchedule();
-    loadOrderLog();
-}
-
 function activate() {
     loadData();
     autoMatchScheduledOrderNumber();
@@ -223,10 +200,6 @@ function locationValue(loc) {
 // return the distribution name(s) whose recurring route serves that
 // location. Used by the sidebar to figure out which distribution(s)
 // correspond to a given day's scheduled orders.
-// Not called by v6: this reverse-looks-up DIST_LOCATION_MAP (six display names,
-// covering 3 of 14 distributions) to get from a site code to distributions. v6's
-// getScheduledDistsForDate() filters schedules on siteCode instead. Kept because
-// it arrived with the contributor's order form, not because anything uses it.
 function getDistNamesForCode(code) {
     return Object.keys(DIST_LOCATION_MAP).filter(name => DIST_LOCATION_MAP[name].code === code);
 }
@@ -1039,18 +1012,7 @@ function ensureOrderForm(dist) {
     return dist.orderForm;
 }
 
-// v6: the schedule carries a real siteCode, so the location comes from the data
-// instead of from DIST_LOCATION_MAP — a six-entry map keyed on the distribution's
-// display NAME, which the v3 "Location Day" rename left covering only three of
-// fourteen distributions. The map is still consulted as a fallback for any
-// pre-v6 caller; it is unchanged and still serves v23/v24 through order-form.js.
 function deriveLocationFromDist(dist) {
-    if (dist && dist.siteCode) {
-        const sites = (_getDb().locationsList || []);
-        const site = sites.find(s => s.code === dist.siteCode);
-        if (site) return locationValue(site);
-        return `${dist.siteCode} - ${dist.siteCode}`.replace(/^(.*) - \1$/, '$1');
-    }
     const mapped = DIST_LOCATION_MAP[dist.name];
     if (mapped) return locationValue(mapped);
     const of = dist.orderForm || {};
@@ -1082,9 +1044,8 @@ function loadData() {
         : orderSchedule.find(o => o.date === formData.date && locationValue({ name: o.name, code: o.code }) === formData.location) || null;
 }
 
-// Location is auto-derived from the distribution itself (in v6, from the
-// schedule's siteCode — see deriveLocationFromDist) the moment a distribution is
-// opened — completely
+// Location is auto-derived from the distribution itself (via
+// DIST_LOCATION_MAP) the moment a distribution is opened — completely
 // independent of whether anyone has touched the Scheduled Order
 // dropdown. That meant a real scheduled order could exist for the
 // current Location + Date and never get pulled in, because nothing
@@ -1932,7 +1893,6 @@ function previewSavedOrder(index) {
 
 const api = {
     init,
-    refresh,
     activate,
     getItems,
     flush,

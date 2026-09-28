@@ -224,10 +224,13 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
       orderNowDispatched: ord.status === 'dispatched'
     };
     const pal = palletsFromShipment(shp);
+    // The manifest amount is the head start, not the count: it lands in
+    // plannedQty, and qty stays 0 until the coordinator counts on site.
     out.shipmentPallets = {
       n: pal.length,
-      binBecomesBin: pal[0].type === 'bin' && pal[0].qty === 2,
-      csBecomesCases: pal[1].type === 'cases' && pal[1].qty === 6,
+      binBecomesBin: pal[0].type === 'bin' && pal[0].plannedQty === 2,
+      csBecomesCases: pal[1].type === 'cases' && pal[1].plannedQty === 6,
+      uncountedUntilSite: pal.every(x => x.qty === 0),
       carriesShipmentId: pal.every(x => x.shipmentId === shp.id)
     };
     // Distribution reading the contract must never need the order
@@ -269,6 +272,41 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
       orders: JSON.stringify(Store.get('orders')).length,
       master: ['sites', 'agencies', 'items', 'schedules'].reduce((n, t) => n + JSON.stringify(Store.get(t)).length, 0)
     };
+
+    // --- active/inactive: former distributions keep archive joins ---------
+    // The flag exists for one reason: a former distribution stays in
+    // schedules.json so its closed weeks still have something to join to. Each
+    // case re-seeds, since add/delete mutate the tables.
+    const reseed = () => { Store.reset(migrateToV6(JSON.parse(JSON.stringify(before)))); Store.tooNew = false; bindDbView(); normalizeTables(); };
+    const archivedCount = () => Store.get('schedules').filter(x => x.archivedOnly).length;
+    const joinedCount = () => { const ids = new Set(Store.get('schedules').map(x => x.id));
+                                return allClosedEvents().filter(e => ids.has(e.scheduleId)).length; };
+    out.active = {};
+    reseed();
+    out.active.liveInactive = Store.get('schedules').filter(x => !x.archivedOnly && x.active === false).length;
+    out.active.formerActive = Store.get('schedules').filter(x => x.archivedOnly && x.active !== false).length;
+    out.active.joinedAtStart = joinedCount();
+    out.active.totalReports = allClosedEvents().length;
+    document.getElementById('mgr-new-name').value = 'Saturday Harness Site';
+    addManagedDist();
+    out.active.archivedAfterAdd = archivedCount();
+    out.active.joinedAfterAdd = joinedCount();
+    reseed();
+    const withHist = db.distributions.find(x => x.name === 'Fairfield Tuesday');
+    const histBefore = allClosedEvents().filter(e => e.scheduleId === withHist.id).length;
+    removeManagedDist(withHist.id);
+    const kept = Store.get('schedules').find(x => x.id === withHist.id);
+    out.active.deleteWithHistory = {
+      histBefore,
+      kept: !!kept && kept.archivedOnly === true && kept.active === false,
+      stillJoins: kept ? allClosedEvents().filter(e => e.scheduleId === kept.id).length : 0,
+      goneFromList: !db.distributions.some(x => x.id === withHist.id)
+    };
+    reseed();
+    const empty = db.distributions.find(x => x.name === 'Tuesday Fairfield');
+    removeManagedDist(empty.id);
+    out.active.emptyRemoved = !Store.get('schedules').some(x => x.id === empty.id);
+    out.active.archivedAfterEmptyDelete = archivedCount();
     return out;
   });
 
@@ -435,8 +473,10 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
   ok('warehouse vocabulary does not cross the wall', r.shipment.leak.length === 0, r.shipment.leak.join(','));
   ok('shipment back-references its order', r.shipment.hasSourceOrder);
   ok('dispatch moves the order to dispatched', r.shipment.orderNowDispatched);
-  ok('BIN becomes a bin pallet, CS becomes cases',
+  ok('BIN becomes a bin pallet, CS becomes cases (ordered amount in plannedQty)',
     r.shipmentPallets.binBecomesBin && r.shipmentPallets.csBecomesCases);
+  ok('pallets arrive uncounted (qty 0) until the coordinator counts on site',
+    r.shipmentPallets.uncountedUntilSite);
   ok('pallets carry the shipment id', r.shipmentPallets.carriesShipmentId);
   ok('distribution can find its shipment without the order', r.distReadsOnlyShipment);
 
@@ -446,6 +486,23 @@ const ok = (name, pass, detail = '') => checks.push({ name, pass, detail });
     r.close.dirtyAfterArchive.some(n => /^events-\d{4}$/.test(n)), r.close.dirtyAfterArchive.join(','));
   ok('open state cleared only after', r.close.clearedAfter);
   ok(`closed event kept in events-${r.close.archiveYear}.json`, r.close.archiveKeptIt);
+
+  // ---- active/inactive ----
+  ok('every live distribution is active, whether or not its roster is entered', r.active.liveInactive === 0,
+    `${r.active.liveInactive} live marked inactive`);
+  ok('only former distributions are inactive', r.active.formerActive === 0);
+  ok(`all ${r.active.totalReports} closed weeks join to a schedule after migration`,
+    r.active.joinedAtStart === r.active.totalReports, `${r.active.joinedAtStart}/${r.active.totalReports}`);
+  ok('adding a distribution leaves the archive-only record alone',
+    r.active.archivedAfterAdd === 1 && r.active.joinedAfterAdd === r.active.totalReports,
+    `archived ${r.active.archivedAfterAdd}, joined ${r.active.joinedAfterAdd}/${r.active.totalReports}`);
+  ok(`deleting a distribution with history retires it (${r.active.deleteWithHistory.stillJoins}/${r.active.deleteWithHistory.histBefore} weeks still join)`,
+    r.active.deleteWithHistory.kept && r.active.deleteWithHistory.stillJoins === r.active.deleteWithHistory.histBefore,
+    JSON.stringify(r.active.deleteWithHistory));
+  ok('a retired distribution leaves the distribution list', r.active.deleteWithHistory.goneFromList);
+  ok('deleting one nothing refers to removes it outright', r.active.emptyRemoved);
+  ok('...and still leaves the archive-only record alone', r.active.archivedAfterEmptyDelete === 1,
+    `archived ${r.active.archivedAfterEmptyDelete}`);
 
   ok('no page errors', errors.length === 0, errors.join(' | '));
 

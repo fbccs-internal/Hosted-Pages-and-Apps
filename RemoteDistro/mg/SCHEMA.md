@@ -113,7 +113,7 @@ explicit, never derived from the code.
 { "id": "PEDI-S2002-WED",
   "siteCode": "PEDI-S2002",
   "dayOfWeek": 3,
-  "cadence": "weekly",          // or "2nd-4th", per "Thursday VACAVILLE 2nd / 4th weeks"
+  "cadence": "all",             // "all" | "1st3rd" | "2nd4th" — the contributor's vocabulary
   "label": "Fairfield Wednesday",
   "active": true }
 ```
@@ -154,8 +154,10 @@ This replaces `distributions` as the recurring definition.
   "status": "open",                      // open -> closed
   "shipmentId": "shp-...",               // what arrived; null if none
   "checkedIn": ["CAMI-S1001", "..."],
-  "pallets": [ { "materialNumber": "APPL-D003", "desc": "...", "qty": 20.73,
-                 "unit": "units", "done": true, "shipmentLine": 3 } ],
+  "pallets": [ { "materialNumber": "APPL-D003", "desc": "...",
+                 "qty": 0,            // counted on site; 0 until the coordinator counts
+                 "plannedQty": 20.73, // the manifest amount, carried as the head start
+                 "unit": "units", "done": true, "shipmentId": "shp-..." } ],
   "lottery": [ { "num": "CAMI-S1001", "name": "...", "late": 1 } ],
   "notes": "",
   "closedAt": null,
@@ -216,12 +218,42 @@ and never interprets.
 A shipment is **immutable once dispatched.** Re-dispatching creates a new shipment; the event
 points at the newest. This is what lets the two halves diverge safely.
 
+**A re-dispatch updates the pallets; it doesn't replace them** (`reconcilePallets()`). The
+coordinator may already have counted, marked pallets done, or added pallets by hand, and a
+corrected order must not undo that work:
+
+- A manifest line that matches an existing pallet keeps that pallet's `id`, counted `qty` and
+  done mark. Only the order-side fields are refreshed: `desc`, `materialNumber`, `plannedQty`,
+  `shipmentId`, `sourcePalletNum`.
+- *Match* means the same material number (case-insensitive) when either side has one, otherwise
+  the same description, **and the same unit.** A count only means something in its unit, so 12
+  cases of bread is not carried onto a bread bin.
+- A manifest line with no match becomes a new pallet, uncounted.
+- A pallet with no matching line is left exactly as it is, including pallets added by hand.
+
+**Overwrite** is an explicit opt-out, unchecked by default. It starts the pallets over from the
+current order: exactly its lines, uncounted, nothing done, hand-added pallets gone. The send
+dialog previews either outcome with the same functions the send runs (`shipmentLinesFrom()`,
+`palletsFromShipment()`, `reconcilePallets()`), recording nothing. So the counts it shows are
+what the send will do.
+
+The shipment is dated from the draft order, and the draft's `date` follows the distribution's
+(`orderFormFor()`). The order form edits the distribution's date directly, so the draft's copy
+used to go stale after the first Close Week and shipments carried the draft's creation date.
+
 **Direction is one-way for now.** Distribution records its own actuals (`pallets[].qty`,
 per-agency allocation, leftover) on the event. Reconciling those back to the warehouse would
 join `events → shipments` on `shipmentId`; there is no return-channel table yet, and adding one
 does not disturb this contract. Noting the attachment point now so it isn't surgery later.
 
 This replaces `mapOrderItemsToPallets()`, which is lossy and couples the two halves directly.
+
+**Manifest quantity is a head start, not a count.** `palletsFromShipment()` puts the manifest
+line quantity in `plannedQty` and sets `qty` to 0. The coordinator at the site is the first
+person positioned to know the real case count: the ERP's per-pallet case counts can't be
+trusted, and substitutions happen at fulfillment. Allocation divides `qty`, so nothing allocates
+until counted; the count dialog shows `plannedQty` as its placeholder, so the usual case is
+confirming a number rather than typing one. (Contributed with the v2 order-component work.)
 
 ---
 
@@ -239,6 +271,9 @@ CheckinPallets/v6/
   events-open.json     ~3 KB   ← live working state          every few seconds
   events-<year>.json   ~25 KB  ← closed history              once per Close Week
 ```
+
+How each of these gets in and out — bulk import or export, a screen, or only by editing the
+file — is in [DATA_IO.md](DATA_IO.md), with the clean-slate traps and an import checklist.
 
 ### Ownership
 
@@ -303,8 +338,9 @@ keys (`'1 Pallet'`) are migrated but flagged.
 
 **4. `schedules`** — from `distributions`, matched to sites by name. Duplicate pairs from the v3
 rename are **left as-is**; they are junk to be cleaned manually or truncated on a fresh start,
-and merging them automatically risks picking the wrong survivor. Empty shells migrate as
-`active:false` so they stay out of the way without being destroyed.
+and merging them automatically risks picking the wrong survivor. Every live distribution
+migrates `active: true`, including ones whose roster hasn't been entered yet — see §3 for what
+`active` means.
 
 **5. `orders`** — from `orderLog` + `orderSchedule` + every `distributions[].orderForm`. Parse
 `location` → `siteCode` from the ` - CODE` suffix. Mint synthetic ids for the 13 blank order
@@ -350,6 +386,14 @@ Two behaviours worth knowing:
 - **`archivedOnly` schedules.** Reports whose distribution was deleted get a schedule of their
   own so the foreign key resolves, marked `archivedOnly` and excluded from the distribution
   list. Without that flag, migrating would resurrect deleted distributions in the sidebar.
+- **`active` means one thing: live, as opposed to former.** A former distribution stays in
+  `schedules.json` (`active: false`, `archivedOnly: true`) only so its closed weeks still have
+  something to join to. It is not a feature flag and nothing in the UI reads it. Deleting a
+  distribution in the app therefore *retires* it if any closed week refers to it, and removes it
+  outright only if nothing does; records already retired are never touched. (Corrected after
+  pass 1: phase 1 set `active` from "has a roster", which marked eleven live distributions
+  inactive, and the delete path removed every archive-only record on any add or delete —
+  orphaning their reports — as well as the history of whatever was deleted.)
 - **The migration owns its input.** `migrateToV6` deep-copies the source before building
   tables. Without it the tables alias the source db, the app's first mutation reaches back into
   it, and a second run on the "same" source produces something different.
@@ -400,18 +444,134 @@ New app file `CheckinPallets_25_mg.html`, seeded read-only from v5's `data-v5.js
 |---|---|
 | Site codes not in `DEFAULT_LOCATIONS` | Provisional filler codes; real ones supplied later |
 | Item description conflicts | Longest wins, others kept in `altDescriptions[]`; canonical list later |
-| Duplicate distributions | Leave them; manual cleanup or fresh-start truncation later |
+| Duplicate distributions | Leave them; covered by a separate data-integrity pass sourced from the ERP |
+| `active` / inactive | Live vs former only — former kept so archive data has something to join to |
 | Duplicate empty orders | Collapse — test residue |
 | Scope | Option B: incremental, master data first |
 | Roster attaches to | **Schedule** (site × day), not site — rosters differ by day at the same site |
 | Order/Distribution coupling | Two bounded contexts, one narrow shipment contract |
+| Order → pallets timing | Explicit dispatch only — **no live sync** (ontologically wrong, and it would write the remote file on every order-form keystroke) |
+| Pallet quantity | `qty` counted on site, starts at 0 — no pre-fill; manifest amount kept as `plannedQty` |
+| Re-sending an order to pallets | Reconcile (§5): matched pallets keep id, count and done mark; new lines arrive uncounted; pallets not on the order are left as they are |
+| Restarting the pallet flow | Explicit **Overwrite** in the send dialog, unchecked by default |
+| Week patterns | Contributor's `all` / `1st3rd` / `2nd4th`, stored as `schedule.cadence` |
+| One-off ("special") orders | Existing machinery — a site plus a planned order; no special type |
+| App as system of record | **No.** The ERP is the source of truth; the app is a working clipboard |
 
 ## 10. Open items
 
 - Real CERES codes for sites currently on filler codes.
 - Canonical item description list, to replace the longest-wins heuristic.
-- Whether `cadence` needs richer expression than `weekly` / `2nd-4th`.
+- Whether `cadence` needs richer expression than `all` / `1st3rd` / `2nd4th`.
 - Return channel from Distribution actuals back to warehouse reconciliation (§5) — attachment
   point identified, not designed.
 - `events-<year>.json` will need splitting again if a year's history outgrows the ceiling; not a
   concern at current volume (~15 events/year/site).
+
+---
+
+## 11. Contributor merge — order-component v2
+
+A contributor extended the order component from `CheckinPallets_23` + `order-form.js`. Their files
+are kept verbatim in `incoming/` as the reviewable baseline. Merged into the v6 line
+(`CheckinPallets_25_mg.html`, `order-form-v6.js`) by three-way merge — base `_23`, ours `_25`,
+theirs `v2` — so that "only they touched it" (splice in) and "both sides touched it" (needs a
+decision) were decided mechanically rather than by judgment. The order form merged with zero
+conflicts; the app with nine, all in regions v6 had already replaced.
+
+### Pass 1 — merged
+
+**Surface UI, taken as-is:** mobile sidebar (hamburger, backdrop, show-all), sidebar schedule-date
+filter, App Settings modal (the four admin actions moved out of the sidebar footer), print menu
+with orientation, pallet-row redesign, clear-all check-ins, pick-order toggle, special-order modal,
+order-number auto-match, full order-detail export.
+
+**Rewired onto v6's joins:**
+- `getScheduledDistsForDate` — their chain went date → AOR calendar → site code → reverse lookup
+  through `DIST_LOCATION_MAP` → distribution *names*. The map covers 3 of 14 distributions, so it
+  returned nothing for eleven. Now a filter on `schedule.siteCode`; same semantics otherwise.
+- `d.weekPattern` → an alias onto `schedule.cadence`, so every call site works unchanged.
+- `SEED_DOW` / `SEED_WEEK_PATTERN` → derived from the label (`dowFromLabel`, `cadenceFromLabel`).
+  Their seed was keyed `'Thursday Vacaville'`; the real distribution is `'Thursday VACAVILLE
+  2nd / 4th weeks'`, so an exact-name seed would have missed it.
+- The qty-on-site affordance, which landed in `mapOrderItemsToPallets` — no longer v6's send
+  path — ported to `palletsFromShipment` where the logic now lives.
+
+**Not taken:** their local-file deployment scaffolding — `fb_db_v2`, disabled sync, JSON
+export/import/reset, the debug panel and `traceV2`. v6 keeps its remote sync architecture.
+
+**Bugs found and fixed along the way** — the first two were already on `main`:
+1. *The order tables' projections broke under the order form's copy pattern* (phase 2). The order
+   form loads with `.map(o => ({...o}))`; a spread drops non-enumerable aliases, so schedule
+   entries lost `code`/`name`, saved orders lost `location`, and every save wrote `items` next to
+   `lines`. Rebuilt as a translation layer: `toScheduleEntry` / `toLogEntry` hand out plain copies
+   in the order form's shape, and `syncOrders` rebuilds clean rows field by field.
+2. *The seed button reported failure after succeeding* (phase 2). Its summary read the `legacy`
+   table phase 2 removed; it now counts `allClosedEvents()`.
+3. *Close Week's date advance was silently undone* — also in production v23. Switching tabs
+   flushes the order form, whose `saveData` writes its date input back onto the distribution; the
+   input still held the pre-close date. Fixed in v25 by syncing the input first. v23 not touched.
+4. *The first sidebar render threw on a fresh load.* Their init renders synchronously after
+   `load()`; v6's load is async. `db` is now bound over empty tables immediately.
+5. *The order form cached its tables once at `init()`*, before v6's async pull landed. Added
+   `OrderForm.refresh()`, called whenever the host rebinds `db`.
+
+### Pass 2 — merged
+
+Decisions, in review: pallets not on a re-sent order are **left as they are**; counts **stay
+blank** until counted on site; re-sending **reconciles**, with an **Overwrite** option, unchecked
+by default, to restart the pallet flow from the current order.
+
+- **Re-send reconciliation** — the rules are in §5. The contributor's idea was right: match on
+  material number, fall back to description, keep the pallet's id so its done mark survives.
+  But their `autoSyncOrderFormToPallets` took every field *except* the id from the fresh
+  pallet, so it kept done marks and reset every count to 0. With counts now starting at 0, each
+  re-save of the order would have wiped them. It also dropped every pallet not on the new order,
+  including ones added by hand. Their live trigger stays out (decided); the reconciliation now
+  runs on the explicit send. That replaces v6's *Replace all* / *Append instead* choice. *Replace
+  all* discarded counts and done marks; *Append instead* added every order line again, so
+  pallets already sent appeared twice.
+- **One action, one question.** The send dialog is *Update pallets from order?* It shows how many
+  pallets are kept, new, and left alone, plus an unchecked **Overwrite** box. Checking it turns
+  the button red and relabels it *Start over*. A first send, with no pallets yet, is unchanged:
+  *Send to Pallets?* / *Add to Pallets*.
+- **Blank count kept.** `qty` starts at 0 with `plannedQty` as the placeholder, no pre-fill.
+  Allocation divides `qty`, so nothing is allocated from an ERP number nobody on site confirmed.
+- **Unit is part of the match** (new; not in the contributor's key). A count carried across a
+  unit change would be a number in the wrong unit, so a line that changes unit arrives as a new,
+  uncounted pallet, and the old one is left alone.
+- **Preview can't disagree with the send.** The dialog used to count through the superseded
+  `mapOrderItemsToPallets`. It now previews through the send's own functions. The pure half of
+  `dispatchShipment` was split out as `shipmentLinesFrom()` so the preview records no shipment.
+  `mapOrderItemsToPallets` is no longer called by v6; it stays in the file, unremoved.
+
+**Bug found and fixed** — on `main` since phase 2:
+
+6. *Shipments were dated from the draft order's creation date.* Close Week recycles the draft for
+   the next week but never moved its date, and dispatch dates the shipment from the draft. So
+   after a distribution's first Close Week, every shipment carried the stale date: Sep 15 for the
+   Oct 13 week in the test. Nothing on screen showed it: reports join on `shipmentId`, and
+   nothing reads shipments by date yet (`shipmentsFor()` is unused). But the stored manifest was
+   wrong, and so was its id, which embeds the date. Pass 1's notes called the stale draft date
+   harmless; that was wrong. `orderFormFor()` now keeps the draft's date in step with the
+   distribution.
+
+**Checks** (`tools/verify-v6-contrib.js` §L) go through the real dialog and the real count and
+done controls: a first send; coordinator work (a count, a done mark, a hand-added pallet); a
+changed order; the preview against the outcome; shipment immutability; a unit change; Overwrite;
+dates. 23 checks. 14 of them fail against the pre-pass-2 app.
+
+### Still open — parked, not pass 2
+
+- **One-off distributions.** A special order creates the order half (site + planned order); the
+  distribution half is still "add a distribution". One action for both, if wanted.
+- **Data integrity — a separate pass, sourced from the ERP** (checklist: [DATA_IO.md](DATA_IO.md)). Covers the three duplicate v3
+  pairs (Monday Vallejo, Tuesday Fairfield, Thursday Vallejo — all created in one sitting on
+  Sep 14 next to populated "Location Day" originals, and now both visible on the sidebar date
+  filter), Wednesday Fairfield's roster (lost when the original distribution was deleted; still
+  recoverable from the Sep 2 report snapshot), the seven distributions still awaiting rosters,
+  and the placeholder El Sobrante site code. Deleting a distribution also deletes its roster
+  with no confirmation — relevant to anyone cleaning up the duplicates by hand.
+- Deferred by the ontology discussion: whether per-agency allocations are ever reported
+  (currently the movement is to the distribution), returns (weighed at the warehouse, not
+  recorded here), and the ERP import shape of the order export.
