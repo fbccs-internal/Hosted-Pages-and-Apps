@@ -272,6 +272,9 @@ CheckinPallets/v6/
   events-<year>.json   ~25 KB  ← closed history              once per Close Week
 ```
 
+How each of these gets in and out — bulk import or export, a screen, or only by editing the
+file — is in [DATA_IO.md](DATA_IO.md), with the clean-slate traps and an import checklist.
+
 ### Ownership
 
 | File | Order | Distribution |
@@ -562,7 +565,7 @@ dates. 23 checks. 14 of them fail against the pre-pass-2 app.
 
 - **One-off distributions.** A special order creates the order half (site + planned order); the
   distribution half is still "add a distribution". One action for both, if wanted.
-- **Data integrity — a separate pass, sourced from the ERP.** Covers the three duplicate v3
+- **Data integrity — a separate pass, sourced from the ERP** (checklist: [DATA_IO.md](DATA_IO.md)). Covers the three duplicate v3
   pairs (Monday Vallejo, Tuesday Fairfield, Thursday Vallejo — all created in one sitting on
   Sep 14 next to populated "Location Day" originals, and now both visible on the sidebar date
   filter), Wednesday Fairfield's roster (lost when the original distribution was deleted; still
